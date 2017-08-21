@@ -60,6 +60,7 @@ static dispatch_group_t http_request_operation_completion_group() {
 @dynamic lock;
 
 - (instancetype)initWithRequest:(NSURLRequest *)urlRequest {
+    // 调用父类初始化方法
     self = [super initWithRequest:urlRequest];
     if (!self) {
         return nil;
