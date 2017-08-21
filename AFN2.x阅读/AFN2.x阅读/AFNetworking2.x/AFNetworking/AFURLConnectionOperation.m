@@ -30,11 +30,12 @@
 // You can turn on ARC for only AFNetworking files by adding -fobjc-arc to the build phase for each of its files.
 #endif
 
+// 标志着网络请求的状态
 typedef NS_ENUM(NSInteger, AFOperationState) {
-    AFOperationPausedState      = -1,
-    AFOperationReadyState       = 1,
-    AFOperationExecutingState   = 2,
-    AFOperationFinishedState    = 3,
+    AFOperationPausedState      = -1, // 暂停
+    AFOperationReadyState       = 1,  // 准备就绪
+    AFOperationExecutingState   = 2,  // 正在进行中
+    AFOperationFinishedState    = 3,  // 完成
 };
 
 static dispatch_group_t url_request_operation_completion_group() {
@@ -68,6 +69,8 @@ typedef NSCachedURLResponse * (^AFURLConnectionOperationCacheResponseBlock)(NSUR
 typedef NSURLRequest * (^AFURLConnectionOperationRedirectResponseBlock)(NSURLConnection *connection, NSURLRequest *request, NSURLResponse *redirectResponse);
 typedef void (^AFURLConnectionOperationBackgroundTaskCleanupBlock)();
 
+
+// 映射这个operation的各个状态
 static inline NSString * AFKeyPathFromOperationState(AFOperationState state) {
     switch (state) {
         case AFOperationReadyState:
@@ -152,6 +155,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 @end
 
 @implementation AFURLConnectionOperation
+// 合成setter、getter
 @synthesize outputStream = _outputStream;
 
 + (void)networkRequestThreadEntryPoint:(id)__unused object {
@@ -159,11 +163,16 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
         [[NSThread currentThread] setName:@"AFNetworking"];
 
         NSRunLoop *runLoop = [NSRunLoop currentRunLoop];
+        // 添加端口，防止runloop直接退出
         [runLoop addPort:[NSMachPort port] forMode:NSDefaultRunLoopMode];
         [runLoop run];
     }
 }
 
+// 这是一个单例，用NSThread创建了一个线程，并且为这个线程添加了一个runloop，并且加了一个NSMachPort，来防止runloop直接退出
+/**
+   这条线程就是AF用来发起网络请求，并且接受网络请求回调的线程，仅仅就这一条线程。和我们之前讲的AF3.x发起请求，并且接受请求回调时的处理方式，遥相呼应
+ */
 + (NSThread *)networkRequestThread {
     static NSThread *_networkRequestThread = nil;
     static dispatch_once_t oncePredicate;
@@ -182,18 +191,20 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     if (!self) {
 		return nil;
     }
-
+    // 设置为ready
     _state = AFOperationReadyState;
-
+    // 递归锁 -- 它允许同一线程多次加锁，而不会造成死锁
+    // self.lock这个锁是用来提供给本类一些数据操作的线程安全，至于为什么要用递归锁，是因为有些方法可能会存在递归调用的情况，例如有些需要锁的方法可能会在一个大的操作环中，形成递归。而AF使用了递归锁，避免了这种情况下死锁的发生。
     self.lock = [[NSRecursiveLock alloc] init];
+    
     self.lock.name = kAFNetworkingLockName;
-
+    // 初始化了self.runLoopModes，默认为NSRunLoopCommonModes。
     self.runLoopModes = [NSSet setWithObject:NSRunLoopCommonModes];
 
     self.request = urlRequest;
-
+    // 是否应该咨询证书存储连接
     self.shouldUseCredentialStorage = YES;
-
+    // https认证策略
     self.securityPolicy = [AFSecurityPolicy defaultPolicy];
 
     return self;
@@ -428,6 +439,8 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     [self.lock unlock];
 }
 
+// 复写了NSOperation的这些属性的get方法，用来和自定义的state一一对应：
+
 - (BOOL)isReady {
     return self.state == AFOperationReadyState && [super isReady];
 }
@@ -444,30 +457,68 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     return YES;
 }
 
-- (void)start {
-    [self.lock lock];
-    if ([self isCancelled]) {
-        [self performSelector:@selector(cancelConnection) onThread:[[self class] networkRequestThread] withObject:nil waitUntilDone:NO modes:[self.runLoopModes allObjects]];
-    } else if ([self isReady]) {
-        self.state = AFOperationExecutingState;
+// 这个类为了自定义operation的各种状态，而且更好的掌控它的生命周期，复写了operation的start方法，当这个operation在一个新线程被调度执行的时候，首先就调入这个start方法中
 
+// 重写operation的start方法
+- (void)start {
+    
+    [self.lock lock];
+    // 如果被取消了就调用取消的方法
+    if ([self isCancelled]) {
+        // 在AF常驻线程中去执行
+        [self performSelector:@selector(cancelConnection) onThread:[[self class] networkRequestThread] withObject:nil waitUntilDone:NO modes:[self.runLoopModes allObjects]];
+        // 准备好了，才开始
+    } else if ([self isReady]) {
+        // 改变状态，开始执行
+        self.state = AFOperationExecutingState;
+        // 在常驻线程中,并且不阻塞的方式，在我们self.runLoopModes的模式下调用 operationDidStart
         [self performSelector:@selector(operationDidStart) onThread:[[self class] networkRequestThread] withObject:nil waitUntilDone:NO modes:[self.runLoopModes allObjects]];
     }
+    // 注意，发起请求和取消请求都是在同一个线程！！包括回调都是在一个线程
+    
     [self.lock unlock];
 }
 
 - (void)operationDidStart {
+    
+    // 此时已经进入到AF的常驻子线程中了
+    
     [self.lock lock];
+    // 如果没取消
     if (![self isCancelled]) {
+        
+        /**
+         Returns an initialized URL connection and begins to load the data for the URL request, if specified.
+         During the download the connection maintains a strong reference to the delegate. It releases that strong reference when the connection finishes loading, fails, or is canceled.
+         
+         Parameters
+         request
+         The URL request to load. The request object is deep-copied as part of the initialization process. Changes made to request after this method returns do not affect the request that is used for the loading process.
+         
+         delegate
+         The delegate object for the connection. The connection calls methods on this delegate as the load progresses.
+         
+         startImmediately
+         YES if the connection should begin loading data immediately, otherwise NO. If you pass NO, the connection is not scheduled with a run loop. You can then schedule the connection in the run loop and mode of your choice by calling scheduleInRunLoop:forMode:
+         startImmediately如果设置为NO 这个connection不会加入到runloop中 需要自己指定runloop
+         */
+        // 如果设置为startImmediately YES 请求发出，回调会加入到主线程的 Runloop 下，RunloopMode 会默认为 NSDefaultRunLoopMode
+        
         self.connection = [[NSURLConnection alloc] initWithRequest:self.request delegate:self startImmediately:NO];
 
         NSRunLoop *runLoop = [NSRunLoop currentRunLoop];
         for (NSString *runLoopMode in self.runLoopModes) {
+            
+            // 把connection和outputStream注册到当前线程runloop中去，只有这样，才能在这个线程中回调
+            // 此处已经是AF的常驻子线程
             [self.connection scheduleInRunLoop:runLoop forMode:runLoopMode];
+
+            // 使用NSURLConnection下载时会有内存峰值 使用outputStream来分段保存文件来可以减小内存峰值 -- 刀哥讲
             [self.outputStream scheduleInRunLoop:runLoop forMode:runLoopMode];
         }
-
+        // 打开输入流
         [self.outputStream open];
+        // 开始请求
         [self.connection start];
     }
     [self.lock unlock];
