@@ -404,6 +404,7 @@ forHTTPHeaderField:(NSString *)field
         }
     }
 
+    // 同3.x一样 根据不同的序列化器生成request
     mutableRequest = [[self requestBySerializingRequest:mutableRequest withParameters:parameters error:error] mutableCopy];
 
 	return mutableRequest;

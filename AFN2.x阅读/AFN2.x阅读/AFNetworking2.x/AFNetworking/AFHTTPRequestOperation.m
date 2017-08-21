@@ -56,15 +56,19 @@ static dispatch_group_t http_request_operation_completion_group() {
 @end
 
 @implementation AFHTTPRequestOperation
+// @dynamic 就是要来告诉编译器，代码中用@dynamic修饰的属性，其getter和setter方法会在程序运行的时候或者用其他方式动态绑定，以便让编译器通过编译。
+// 使用@synthesize，编译器会确实的产生getter和setter方法，而@dynamic仅仅是告诉编译器这两个方法在运行期会有的，无需产生警告。
 @dynamic response;
 @dynamic lock;
 
 - (instancetype)initWithRequest:(NSURLRequest *)urlRequest {
+    
+    //  调用了父类，也是我们最核心的类AFURLConnectionOperation的初始化方法，首先我们要明确这个类是继承自NSOperation的
     self = [super initWithRequest:urlRequest];
     if (!self) {
         return nil;
     }
-
+    //  设置了一个self.responseSerializer，
     self.responseSerializer = [AFHTTPResponseSerializer serializer];
 
     return self;

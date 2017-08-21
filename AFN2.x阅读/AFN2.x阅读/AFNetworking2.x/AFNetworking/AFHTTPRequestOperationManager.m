@@ -33,7 +33,16 @@
 
 @interface AFHTTPRequestOperationManager ()
 @property (readwrite, nonatomic, strong) NSURL *baseURL;
+
 @end
+
+/**
+     大家都知道，AF2.x是基于NSURLConnection来封装的，而NSURLConnection的创建以及数据请求，就被封装在AFURLConnectionOperation这个类中。所以这个类基本上是AF2.x最底层也是最核心的类。
+ 
+     而AFHTTPRequestOperation是继承自AFURLConnectionOperation，对它父类一些方法做了些封装。
+ 
+     AFHTTPRequestOperationManager则是一个管家，去管理这些这些operation。
+ */
 
 @implementation AFHTTPRequestOperationManager
 
@@ -65,11 +74,18 @@
 
     self.reachabilityManager = [AFNetworkReachabilityManager sharedManager];
 
+    // 用来调度所有请求的Queue
     self.operationQueue = [[NSOperationQueue alloc] init];
-
+    // 是否做证书验证
     self.shouldUseCredentialStorage = YES;
 
     return self;
+    
+    /**
+     初始化方法很简单，基本和AF3.x类似，除了一下两点：
+     1)设置了一个operationQueue，这个队列，用来调度里面所有的operation，在AF2.x中，每一个operation就是一个网络请求。
+     2)设置shouldUseCredentialStorage为YES，这个后面会传给operation，operation会根据这个值，去返回给代理，系统是否做https的证书验证
+     */
 }
 
 #pragma mark -
@@ -98,8 +114,10 @@
                                                        failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
     NSError *serializationError = nil;
+    // 根据参数生成request
     NSMutableURLRequest *request = [self.requestSerializer requestWithMethod:method URLString:[[NSURL URLWithString:URLString relativeToURL:self.baseURL] absoluteString] parameters:parameters error:&serializationError];
-    if (serializationError) {
+    
+    if (serializationError) { // 序列化失败
         if (failure) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu"
@@ -111,7 +129,8 @@
 
         return nil;
     }
-
+    
+    // 根据生成的request生成AFHTTPRequestOperation
     return [self HTTPRequestOperationWithRequest:request success:success failure:failure];
 }
 
@@ -119,28 +138,36 @@
                                                     success:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
                                                     failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
+    
+    // AFHTTPRequestOperation的初始化
     AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
+    
     operation.responseSerializer = self.responseSerializer;
     operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
     operation.credential = self.credential;
+    // 设置自定义的安全策略
     operation.securityPolicy = self.securityPolicy;
-
+    
     [operation setCompletionBlockWithSuccess:success failure:failure];
     operation.completionQueue = self.completionQueue;
     operation.completionGroup = self.completionGroup;
 
     return operation;
+    
+    // 方法创建了一个AFHTTPRequestOperation，并把自己的一些参数交给了这个operation处理。
 }
 
 #pragma mark -
-
+// GET请求
 - (AFHTTPRequestOperation *)GET:(NSString *)URLString
                      parameters:(id)parameters
                         success:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
                         failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
+    // 创建operation
     AFHTTPRequestOperation *operation = [self HTTPRequestOperationWithHTTPMethod:@"GET" URLString:URLString parameters:parameters success:success failure:failure];
 
+    // 将operation加入到队列中
     [self.operationQueue addOperation:operation];
 
     return operation;
