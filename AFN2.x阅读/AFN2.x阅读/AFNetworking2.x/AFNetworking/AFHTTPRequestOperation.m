@@ -62,7 +62,7 @@ static dispatch_group_t http_request_operation_completion_group() {
 @dynamic lock;
 
 - (instancetype)initWithRequest:(NSURLRequest *)urlRequest {
-    //  调用了父类，也是我们最核心的类AFURLConnectionOperation的初始化方法，首先我们要明确这个类是继承自NSOperation的
+    //  调用了父类，也是我们最核心的类AFURLConnectionOperation的初始化方法，首先我们要明确这个类是继承自NSOperation的   NSOperation是个抽象的类
     self = [super initWithRequest:urlRequest];
     if (!self) {
         return nil;

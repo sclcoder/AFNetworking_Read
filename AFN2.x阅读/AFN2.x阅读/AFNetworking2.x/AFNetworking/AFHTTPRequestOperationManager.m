@@ -138,22 +138,22 @@
                                                     failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
     
-    // AFHTTPRequestOperation的初始化
+    // 方法创建了一个AFHTTPRequestOperation，并把自己的一些参数交给了这个operation处理。
     AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-    
+    // AFHTTPRequestOperation的属性
     operation.responseSerializer = self.responseSerializer;
+    // 这几个参数在父类AFURLConnectionOperation中的属性
     operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
     operation.credential = self.credential;
-    // 设置自定义的安全策略
     operation.securityPolicy = self.securityPolicy;
     
     [operation setCompletionBlockWithSuccess:success failure:failure];
+    
     operation.completionQueue = self.completionQueue;
     operation.completionGroup = self.completionGroup;
 
     return operation;
     
-    // 方法创建了一个AFHTTPRequestOperation，并把自己的一些参数交给了这个operation处理。
 }
 
 #pragma mark -
@@ -166,7 +166,8 @@
     // 创建operation
     AFHTTPRequestOperation *operation = [self HTTPRequestOperationWithHTTPMethod:@"GET" URLString:URLString parameters:parameters success:success failure:failure];
 
-    // 将operation加入到队列中
+    // 将operation加入到队列中 然后这个并发队列会调度这个operation(多线程调度即在子线程中执行某个operation)
+    //  An operation queue executes its operations either directly, by running them on secondary threads, or indirectly using the libdispatch library (also known as Grand Central Dispatch)
     [self.operationQueue addOperation:operation];
 
     return operation;
