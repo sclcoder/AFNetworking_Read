@@ -16,6 +16,7 @@
 
 @end
 
+// 同步执行的OP（在不适用OPQueue的情况下）
 @implementation CustomOperation
 
 - (instancetype)initWithData:(id)data{
@@ -43,7 +44,7 @@
                 
                 sleep(1);
                 
-                NSLog(@"Loop %@", @(i + 1));
+                NSLog(@"Loop %@, thread %@", @(i + 1),[NSThread currentThread]);
             }
         
            NSLog(@"Finish executing %@", NSStringFromSelector(_cmd));

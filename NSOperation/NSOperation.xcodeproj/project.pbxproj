@@ -14,6 +14,9 @@
 		04D69A661F5426040076ED24 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 04D69A651F5426040076ED24 /* Assets.xcassets */; };
 		04D69A691F5426040076ED24 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04D69A671F5426040076ED24 /* LaunchScreen.storyboard */; };
 		04D69A721F5426510076ED24 /* CustomOperation.m in Sources */ = {isa = PBXBuildFile; fileRef = 04D69A711F5426510076ED24 /* CustomOperation.m */; };
+		04D69A751F5509BA0076ED24 /* ConcurrentOperation.m in Sources */ = {isa = PBXBuildFile; fileRef = 04D69A741F5509BA0076ED24 /* ConcurrentOperation.m */; };
+		04D69A781F55730E0076ED24 /* Person.m in Sources */ = {isa = PBXBuildFile; fileRef = 04D69A771F55730E0076ED24 /* Person.m */; };
+		04D69A7E1F55732B0076ED24 /* Teacher.m in Sources */ = {isa = PBXBuildFile; fileRef = 04D69A7D1F55732B0076ED24 /* Teacher.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +32,12 @@
 		04D69A6A1F5426040076ED24 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		04D69A701F5426510076ED24 /* CustomOperation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = CustomOperation.h; sourceTree = "<group>"; };
 		04D69A711F5426510076ED24 /* CustomOperation.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = CustomOperation.m; sourceTree = "<group>"; };
+		04D69A731F5509BA0076ED24 /* ConcurrentOperation.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = ConcurrentOperation.h; sourceTree = "<group>"; };
+		04D69A741F5509BA0076ED24 /* ConcurrentOperation.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = ConcurrentOperation.m; sourceTree = "<group>"; };
+		04D69A761F55730E0076ED24 /* Person.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Person.h; sourceTree = "<group>"; };
+		04D69A771F55730E0076ED24 /* Person.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Person.m; sourceTree = "<group>"; };
+		04D69A7C1F55732B0076ED24 /* Teacher.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = Teacher.h; sourceTree = "<group>"; };
+		04D69A7D1F55732B0076ED24 /* Teacher.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = Teacher.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -67,6 +76,12 @@
 				04D69A601F5426040076ED24 /* ViewController.m */,
 				04D69A701F5426510076ED24 /* CustomOperation.h */,
 				04D69A711F5426510076ED24 /* CustomOperation.m */,
+				04D69A731F5509BA0076ED24 /* ConcurrentOperation.h */,
+				04D69A741F5509BA0076ED24 /* ConcurrentOperation.m */,
+				04D69A761F55730E0076ED24 /* Person.h */,
+				04D69A771F55730E0076ED24 /* Person.m */,
+				04D69A7C1F55732B0076ED24 /* Teacher.h */,
+				04D69A7D1F55732B0076ED24 /* Teacher.m */,
 				04D69A621F5426040076ED24 /* Main.storyboard */,
 				04D69A651F5426040076ED24 /* Assets.xcassets */,
 				04D69A671F5426040076ED24 /* LaunchScreen.storyboard */,
@@ -156,6 +171,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				04D69A781F55730E0076ED24 /* Person.m in Sources */,
+				04D69A7E1F55732B0076ED24 /* Teacher.m in Sources */,
+				04D69A751F5509BA0076ED24 /* ConcurrentOperation.m in Sources */,
 				04D69A721F5426510076ED24 /* CustomOperation.m in Sources */,
 				04D69A611F5426040076ED24 /* ViewController.m in Sources */,
 				04D69A5E1F5426040076ED24 /* AppDelegate.m in Sources */,
