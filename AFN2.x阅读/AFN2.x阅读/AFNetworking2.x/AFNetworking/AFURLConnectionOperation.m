@@ -70,7 +70,7 @@ typedef NSURLRequest * (^AFURLConnectionOperationRedirectResponseBlock)(NSURLCon
 typedef void (^AFURLConnectionOperationBackgroundTaskCleanupBlock)();
 
 
-// 映射这个operation的各个状态
+// 映射这个NSOperation的各个状态
 static inline NSString * AFKeyPathFromOperationState(AFOperationState state) {
     switch (state) {
         case AFOperationReadyState:
@@ -191,8 +191,10 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     if (!self) {
 		return nil;
     }
-    // 设置为ready
+    // 设置为ready 这里面有关于自定义NSOperation的学问
     _state = AFOperationReadyState;
+    
+    
     // 递归锁 -- 它允许同一线程多次加锁，而不会造成死锁
     // self.lock这个锁是用来提供给本类一些数据操作的线程安全，至于为什么要用递归锁，是因为有些方法可能会存在递归调用的情况，例如有些需要锁的方法可能会在一个大的操作环中，形成递归。而AF使用了递归锁，避免了这种情况下死锁的发生。
     self.lock = [[NSRecursiveLock alloc] init];
@@ -331,11 +333,13 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 #pragma mark -
 
 - (void)setState:(AFOperationState)state {
+    // 检查状态过渡时是否有效
     if (!AFStateTransitionIsValid(self.state, state, [self isCancelled])) {
         return;
     }
 
     [self.lock lock];
+    // 发送NSOperation的状态将要变化的KVO通知
     NSString *oldStateKey = AFKeyPathFromOperationState(self.state);
     NSString *newStateKey = AFKeyPathFromOperationState(state);
 
@@ -439,8 +443,10 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     [self.lock unlock];
 }
 
-// 复写了NSOperation的这些属性的get方法，用来和自定义的state一一对应：
 
+// 自定义并发的NSOperation时需要重写NSOperation的部分方法
+
+// 复写了NSOperation的这些属性的get方法，用来和自定义的state一一对应：
 - (BOOL)isReady {
     return self.state == AFOperationReadyState && [super isReady];
 }
@@ -453,6 +459,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     return self.state == AFOperationFinishedState;
 }
 
+// 标志这个operation是并发的
 - (BOOL)isConcurrent {
     return YES;
 }
@@ -460,17 +467,22 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 // 这个类为了自定义operation的各种状态，而且更好的掌控它的生命周期，复写了operation的start方法，当这个operation在一个新线程被调度执行的时候，首先就调入这个start方法中
 
 // 重写operation的start方法
+// operation就是从start方法开始执行的
+
 - (void)start {
     
     [self.lock lock];
     // 如果被取消了就调用取消的方法
     if ([self isCancelled]) {
-        // 在AF常驻线程中去执行
+        // 在AF常驻线程中去执行 operation的任务
         [self performSelector:@selector(cancelConnection) onThread:[[self class] networkRequestThread] withObject:nil waitUntilDone:NO modes:[self.runLoopModes allObjects]];
         // 准备好了，才开始
     } else if ([self isReady]) {
-        // 改变状态，开始执行
+        
+        // 改变状态，开始执行 setter方法触发了KVO通知
         self.state = AFOperationExecutingState;
+        
+        
         // 在常驻线程中,并且不阻塞的方式，在我们self.runLoopModes的模式下调用 operationDidStart
         [self performSelector:@selector(operationDidStart) onThread:[[self class] networkRequestThread] withObject:nil waitUntilDone:NO modes:[self.runLoopModes allObjects]];
     }
@@ -479,12 +491,15 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     [self.lock unlock];
 }
 
+
+// 这个operation发起了一个NSURLConnection的请求
 - (void)operationDidStart {
     
     // 此时已经进入到AF的常驻子线程中了
-    
+
     [self.lock lock];
-    // 如果没取消
+    
+    // 自定义NSOperation中的问题 需要经常检查operation是否取消 http://blog.leichunfeng.com/blog/2015/07/29/ios-concurrency-programming-operation-queues/
     if (![self isCancelled]) {
         
         /**
@@ -530,6 +545,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 
 - (void)finish {
     [self.lock lock];
+    // 会触发KVO
     self.state = AFOperationFinishedState;
     [self.lock unlock];
 

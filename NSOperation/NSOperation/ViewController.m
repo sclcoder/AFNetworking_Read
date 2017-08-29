@@ -30,13 +30,16 @@
 
 - (void)baseTest{
     
-    Teacher * t = [[Teacher alloc] init];
-    Person *p = [[Person alloc] init];
-    
-    NSLog(@"%@",  p->_name); // 只有是@public的成员变量才能在任何文件中都能直接访问
-    NSLog(@"%@",  p.age); //  间接访问
-//    NSLog(@"%@",  p->_age); 不能直接访问
+    Teacher *t = [[Teacher alloc] init];
+    NSLog(@"%@",t.description);
 
+    
+    Person *p = [[Person alloc] init];
+    NSLog(@"%@",p.description);
+
+//    NSLog(@"%@",  p->_name); // 只有是@public的成员变量才能在任何文件中都能直接访问
+//    NSLog(@"%@",  p.age); //  间接访问
+//    NSLog(@"%@",  p->_age); // 不能直接访问
 
 }
 

@@ -10,6 +10,9 @@
 
 @implementation Teacher
 
+//@synthesize height = _height;
+//@synthesize age = _age;
+
 - (instancetype)init{
     
     self = [super init];
@@ -17,20 +20,18 @@
         
         // @public
         _name = @"teacher";
-
+        
         // @protected
         _sex = @"女";
 
-        self->_weight = @"100kg";
-        _weight = @"120kg";
+        _weight = @"100kg";
+        // self->_weight = @"90kg";
         
         // @private     不能直接访问
-        // _age = @"120";
-        self.age = @"1000"; // 间接访问私有成员变量
+//         _age = @"120";
+        self.age = @"100"; // 间接访问私有成员变量
         
-        // self->height; // 不能访问
-        
-        NSLog(@"name:%@--age:%@--sex:%@--weight:%@",self.name,self.age,self.sex,self.weight);
+        _height = @"180cm";
         
     }
     
@@ -38,7 +39,11 @@
 }
 
 
-
+- (NSString *)description{
+    
+    return [NSString stringWithFormat:@"sex:%@  name:%@  age:%@  weight:%@ height:%@",self.sex,self.name,self.age,self.weight,self.height];
+    
+}
 
 
 @end

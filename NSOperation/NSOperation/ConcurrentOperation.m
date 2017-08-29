@@ -24,22 +24,31 @@
 @end
 
 @implementation ConcurrentOperation
+// 合成两个成员变量
+@synthesize executing = _executing;
+@synthesize finished  = _finished;
 
-//@synthesize executing = _executing;
-//@synthesize finished  = _finished;
 
-
-- (instancetype)init{
-
+- (id)init {
     self = [super init];
     if (self) {
-        // _executing是父类的私有变量 子类不能直接访问
-        NSLog(@"%zd",self.executing);
-//        NSLog(@"%zd",self->_executing);
-
+        _executing = NO;
+        _finished  = NO;
     }
-    
     return self;
+}
+
+
+- (BOOL)isConcurrent {
+    return YES;
+}
+
+- (BOOL)isExecuting {
+    return _executing;
+}
+
+- (BOOL)isFinished {
+    return _finished;
 }
 
 

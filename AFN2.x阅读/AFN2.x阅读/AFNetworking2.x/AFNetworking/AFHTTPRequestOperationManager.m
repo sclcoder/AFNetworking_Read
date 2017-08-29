@@ -168,6 +168,7 @@
 
     // 将operation加入到队列中 然后这个并发队列会调度这个operation(多线程调度即在子线程中执行某个operation)
     //  An operation queue executes its operations either directly, by running them on secondary threads, or indirectly using the libdispatch library (also known as Grand Central Dispatch)
+    //  执行自定义operation的start中的任务
     [self.operationQueue addOperation:operation];
 
     return operation;
