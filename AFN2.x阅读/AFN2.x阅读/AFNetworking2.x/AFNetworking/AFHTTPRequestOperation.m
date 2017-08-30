@@ -58,8 +58,11 @@ static dispatch_group_t http_request_operation_completion_group() {
 @end
 
 @implementation AFHTTPRequestOperation
-// @dynamic 就是要来告诉编译器，代码中用@dynamic修饰的属性，其getter和setter方法会在程序运行的时候或者用其他方式动态绑定，以便让编译器通过编译。
+// @dynamic 就是要来告诉编译器，代码中用@dynamic修饰的属性，其getter和setter方法会在程序运行的时候或者用其他方式动态绑定，以便让编译器通过编译。不会生成_xxx成员变量。
+
 // 使用@synthesize，编译器会确实的产生getter和setter方法，而@dynamic仅仅是告诉编译器这两个方法在运行期会有的，无需产生警告。
+
+// scl: 父类中也有response这个属性 运行时（runtime）如果本类调用到response的get或set方法就会找到父类的相关方法，也就是本类中的这个方法操作的是父类中的成员变量
 @dynamic response;
 @dynamic lock;
 
@@ -87,12 +90,15 @@ static dispatch_group_t http_request_operation_completion_group() {
     [self.lock unlock];
 }
 
+// 获取请求数据
 - (id)responseObject {
-    
+
     // 解析数据
     [self.lock lock];
     if (!_responseObject && [self isFinished] && !self.error) {
         NSError *error = nil;
+        // 数据解析
+        // 由于继承 可以获取到父类AFURLConnectionOperation中的self.response  self.responseData
         self.responseObject = [self.responseSerializer responseObjectForResponse:self.response data:self.responseData error:&error];
         if (error) {
             self.responseSerializationError = error;
@@ -126,7 +132,7 @@ static dispatch_group_t http_request_operation_completion_group() {
     
     // self.completionBlock这个block是NSOperation的,当operation完成后会主动回调这个block
     
-    // 给completionBlock赋值  重写了setter
+    // 给completionBlock赋值  AFURLConnectionOperation重写了其setter
     self.completionBlock = ^{
         
         NSLog(@"用户设置setCompletionBlock被调用 %s",__func__);
@@ -143,7 +149,7 @@ static dispatch_group_t http_request_operation_completion_group() {
                 
                 if (failure) {
                     
-                    // dispatch_group_async(,,)这种写法是一种简写方式 本质还是 dispatch_group_enter dispatch_group_leave
+                    // dispatch_group_async( , , )这种写法是一种简写方式 本质还是 dispatch_group_enter dispatch_group_leave
                     dispatch_group_async(self.completionGroup ?: http_request_operation_completion_group(), self.completionQueue ?: dispatch_get_main_queue(), ^{
                         
                         // 失败回调
@@ -155,6 +161,7 @@ static dispatch_group_t http_request_operation_completion_group() {
             } else { // error为空 说明请求成功
                 
                 // 重写了self.responseObject方法--解析数据
+                // 获取请求数据---self.responseObject方法中会进行解析
                 id responseObject = self.responseObject;
                 
                 if (self.error) { // 解析出错

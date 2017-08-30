@@ -131,7 +131,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     }
 }
 
-// 类扩展 私有的 子类也无法访问
+// 类扩展 私有的 子类 无法直接访问
 @interface AFURLConnectionOperation ()
 
 @property (readwrite, nonatomic, assign) AFOperationState state;
@@ -157,7 +157,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 @end
 
 @implementation AFURLConnectionOperation
-// 合成setter、getter
+// 合成setter、getter 生成成员变量_outputStream
 @synthesize outputStream = _outputStream;
 
 + (void)networkRequestThreadEntryPoint:(id)__unused object {
@@ -216,7 +216,6 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     /**
         初始化结束后，看似这个类中的方法的都没被执行。其实不然，由于这个类继承NSOperation，当将operation添加到Queue中后,队列会调用operation。而operation的入口方法是 start 所以,要从这个类的start方法入手。
      */
-    
 }
 
 - (instancetype)init NS_UNAVAILABLE
@@ -236,8 +235,9 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 }
 
 #pragma mark -
-
+// 网络请求结束 connection的代理方法 会触发改方法
 - (void)setResponseData:(NSData *)responseData {
+    
     [self.lock lock];
     if (!responseData) {
         _responseData = nil;
@@ -287,10 +287,23 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 
 - (NSOutputStream *)outputStream {
     if (!_outputStream) {
+        // 一个写入到内存中的流，可以通过NSStreamDataWrittenToMemoryStreamKey拿到写入后的数据
         self.outputStream = [NSOutputStream outputStreamToMemory];
     }
 
     return _outputStream;
+    
+    /**
+     这里数据请求和拼接并没有用NSMutableData，而是用了outputStream，而且把写入的数据，放到内存中。
+     
+     其实讲道理来说outputStream的优势在于下载大文件的时候，可以以流的形式，将文件直接保存到本地，这样可以为我们节省很多的内存，调用如下方法设置：
+     [NSOutputStream outputStreamToFileAtPath:@"filePath" append:YES];
+     
+     但是这里是把流写入内存中，这样其实这个节省内存的意义已经不存在了。那为什么还要用呢？这里我猜测的是就是为了用它这个可以注册在某一个runloop的指定mode下。 虽然AF使用这个outputStream是肯定在这个常驻线程中的，不会有线程安全的问题。但是要注意它是被声明在.h中的：
+     @property (nonatomic, strong) NSOutputStream *outputStream;
+     难保外部不会在其他线程对这个数据做什么操作，所以它相对于NSMutableData作用就体现出来了，就算我们在外部其它线程中去操作它，也不会有线程安全的问题
+     */
+    
 }
 
 - (void)setOutputStream:(NSOutputStream *)outputStream {
@@ -340,22 +353,30 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 #pragma mark -
 
 - (void)setState:(AFOperationState)state {
-    // 检查状态过渡时是否有效
+    
+    // 判断从当前状态到另一个状态是不是合理，在加上现在是否取消。。大神的框架就是屌啊，这判断严谨的。。一层层
     if (!AFStateTransitionIsValid(self.state, state, [self isCancelled])) {
         return;
     }
 
     [self.lock lock];
-    // 发送NSOperation的状态将要变化的KVO通知
+    // 获取NSOperation中需要KVO的keyPath  自定义并发NSOperation必须这样做
+    // 拿到对应的父类（NSOperation）管理当前线程周期的key
     NSString *oldStateKey = AFKeyPathFromOperationState(self.state);
     NSString *newStateKey = AFKeyPathFromOperationState(state);
-
+    
+    // 发出KVO
     [self willChangeValueForKey:newStateKey];
     [self willChangeValueForKey:oldStateKey];
-    _state = state;
+    _state = state; // 直接访问成员变量 不能是用点语法 会死循环
     [self didChangeValueForKey:oldStateKey];
     [self didChangeValueForKey:newStateKey];
     [self.lock unlock];
+    
+    /**
+     这个方法改变state的时候，并且发送了KVO。
+     大家了解NSOperationQueue就知道，如果对应的operation的属性finnished被设置为YES，则代表当前operation结束了，会把operation从队列中移除，并且调用operation的completionBlock。
+     */
 }
 
 - (void)pause {
@@ -400,8 +421,9 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 }
 
 #pragma mark -
-
+// .h中声明的相关方法
 - (void)setUploadProgressBlock:(void (^)(NSUInteger bytesWritten, long long totalBytesWritten, long long totalBytesExpectedToWrite))block {
+    // 记录用户传入的block
     self.uploadProgress = block;
 }
 
@@ -428,9 +450,13 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 - (void)setCompletionBlock:(void (^)(void))block {
     
     [self.lock lock];
+    
     if (!block) {
+        
         [super setCompletionBlock:nil];
+        
     } else {
+        
         __weak __typeof(self)weakSelf = self;
         
         // 给父类NSOperation设置回调 当NSOperation任务完成后会执行这个传入的CompletionBlock
@@ -553,7 +579,8 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
         }
         // 打开输入流
         [self.outputStream open];
-        // 开始请求
+        
+        // 开始请求  -- 进入代理回调方法
         [self.connection start];
     }
     [self.lock unlock];
@@ -565,10 +592,12 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 
 - (void)finish {
     [self.lock lock];
-    // 会触发KVO
+    //
+    // 修改状态 -- 会发送KVO通知
     self.state = AFOperationFinishedState;
     [self.lock unlock];
-
+    
+    //发送完成的通知
     dispatch_async(dispatch_get_main_queue(), ^{
         [[NSNotificationCenter defaultCenter] postNotificationName:AFNetworkingOperationDidFinishNotification object:self];
     });
@@ -674,7 +703,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 }
 
 #pragma mark - NSURLConnectionDelegate
-
+// Https相关
 - (void)connection:(NSURLConnection *)connection
 willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
 {
@@ -707,6 +736,7 @@ willSendRequestForAuthenticationChallenge:(NSURLAuthenticationChallenge *)challe
     return self.shouldUseCredentialStorage;
 }
 
+// 重定向相关
 - (NSURLRequest *)connection:(NSURLConnection *)connection
              willSendRequest:(NSURLRequest *)request
             redirectResponse:(NSURLResponse *)redirectResponse
@@ -730,12 +760,16 @@ totalBytesExpectedToWrite:(NSInteger)totalBytesExpectedToWrite
     });
 }
 
+//收到响应，响应头类似相关数据
+
 - (void)connection:(NSURLConnection __unused *)connection
 didReceiveResponse:(NSURLResponse *)response
 {
+    // 赋值
     self.response = response;
 }
 
+// 拼接获取到的数据
 - (void)connection:(NSURLConnection __unused *)connection
     didReceiveData:(NSData *)data
 {
@@ -774,31 +808,47 @@ didReceiveResponse:(NSURLResponse *)response
     });
 }
 
+//完成了调用
 - (void)connectionDidFinishLoading:(NSURLConnection __unused *)connection {
+    
+    // 从outputStream中拿到数据 NSStreamDataWrittenToMemoryStreamKey写入到内存中的流
+    // 重写了responseData的setter
     self.responseData = [self.outputStream propertyForKey:NSStreamDataWrittenToMemoryStreamKey];
-
+    // 关闭outputStream
     [self.outputStream close];
+    // 如果响应数据已经有了，则outputStream置为nil
     if (self.responseData) {
        self.outputStream = nil;
     }
-
+    // 清空connection
     self.connection = nil;
+    // 调用finish  -- finish方法改变state状态为finished时会触发KVO通知 导致operation的状态为isFinished为真 从而导致触发operation完成block的回调
+    // 大家了解NSOperationQueue就知道，如果对应的operation的属性finnished被设置为YES，则代表当前operation结束了，会把operation从队列中移除，并且调用operation的completionBlock。
 
     [self finish];
+    
+    /**
+     这个代理是任务完成之后调用。我们从outputStream拿到了最后下载数据，然后关闭置空了outputStream。并且清空了connection。调用了finish:
+     */
 }
 
+
+// 请求失败的回调，在cancel connection的时候，自己也主动调用了
 - (void)connection:(NSURLConnection __unused *)connection
   didFailWithError:(NSError *)error
 {
+    
+    // 唯一需要说一下的就是这里给self.error赋值，之后完成Block会根据这个error，去判断这次请求是成功还是失败。
     self.error = error;
-
+    // 关闭outputStream
     [self.outputStream close];
+    // 如果响应数据已经有了，则outputStream置为nil
     if (self.responseData) {
         self.outputStream = nil;
     }
 
     self.connection = nil;
-
+    
     [self finish];
 }
 
