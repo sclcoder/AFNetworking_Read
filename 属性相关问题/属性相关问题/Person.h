@@ -40,7 +40,8 @@
 @property(nonatomic,copy) NSString *name;
 @property(nonatomic,copy) NSString *age;
 @property(nonatomic,copy) NSString *weight;
-// 通过@property 自动生成的成员变量是私有的
+
+// 通过@property 自动生成的成员变量 相当于在.m文件 对外不可见
 @property(nonatomic,copy) NSString *height;
 
 

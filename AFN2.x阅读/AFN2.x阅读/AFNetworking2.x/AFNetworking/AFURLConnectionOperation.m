@@ -131,7 +131,9 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     }
 }
 
+// 类扩展 私有的 子类也无法访问
 @interface AFURLConnectionOperation ()
+
 @property (readwrite, nonatomic, assign) AFOperationState state;
 @property (readwrite, nonatomic, strong) NSRecursiveLock *lock;
 @property (readwrite, nonatomic, strong) NSURLConnection *connection;
@@ -421,6 +423,8 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 
 #pragma mark - NSOperation
 
+// 重写NSOperation的方法 在设置setCompletionBlock时加上了锁
+// 为什么要加锁?
 - (void)setCompletionBlock:(void (^)(void))block {
     
     [self.lock lock];
@@ -429,7 +433,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     } else {
         __weak __typeof(self)weakSelf = self;
         
-        // 给父类NSOperation设置block回调
+        // 给父类NSOperation设置回调 当NSOperation任务完成后会执行这个传入的CompletionBlock
         [super setCompletionBlock:^ {
             
             NSLog(@"AF设置setCompletionBlock被调用 %s",__func__);
@@ -438,20 +442,20 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu"
-            // GCD组
+            // 看有没有自定义的完成组，否则用AF的组
             dispatch_group_t group = strongSelf.completionGroup ?: url_request_operation_completion_group();
-            // 队列
+            // 看有没有自定义的完成queue，否则用主队列
             dispatch_queue_t queue = strongSelf.completionQueue ?: dispatch_get_main_queue();
 #pragma clang diagnostic pop
 
             dispatch_group_async(group, queue, ^{
-                // block回调
+            // 调用设置的Block,在这个组和队列中
                 block();
             });
 
             dispatch_group_notify(group, url_request_operation_completion_queue(), ^{
                 
-                // 所有任务都完成后 清空CompletionBlock
+                // 所有任务都完成后 清空CompletionBlock 防止循环引用
                 [strongSelf setCompletionBlock:nil];
             });
         }];

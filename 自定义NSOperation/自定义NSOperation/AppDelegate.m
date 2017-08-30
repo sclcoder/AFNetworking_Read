@@ -1,9 +1,9 @@
 //
 //  AppDelegate.m
-//  NSOperation
+//  自定义NSOperation
 //
-//  Created by mac on 2017/8/28.
-//  Copyright © 2017年 yunjifen. All rights reserved.
+//  Created by 孙春磊 on 2017/8/30.
+//  Copyright © 2017年 云积分. All rights reserved.
 //
 
 #import "AppDelegate.h"

@@ -44,7 +44,7 @@ static dispatch_group_t http_request_operation_completion_group() {
 }
 
 #pragma mark -
-
+// 这种用法第一次见 类扩展
 @interface AFURLConnectionOperation ()
 @property (readwrite, nonatomic, strong) NSURLRequest *request;
 @property (readwrite, nonatomic, strong) NSURLResponse *response;

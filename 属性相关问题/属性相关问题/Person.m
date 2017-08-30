@@ -8,9 +8,13 @@
 
 #import "Person.h"
 
+// 写在.m中类扩展的 子类也无法看到
+// 但是子类可以通过runtime动态获取到属性的setter和getter  即使这些属性是在 .m类扩展中
 @interface Person ()
 
 @property(nonatomic,copy) NSString *hometown;
+
+@property(nonatomic,copy) NSString *hobby;
 
 @end
 
@@ -31,6 +35,8 @@
         _age = @"1000";
         _weight = @"2000kg";
         _height = @"1800cm";
+        
+        _hobby = @"person-sport";
     }
     return self;
 }
@@ -38,7 +44,7 @@
 
 - (NSString *)description{
     
-    return [NSString stringWithFormat:@"sex:%@  name:%@  age:%@  weight:%@ height:%@",self.sex,self.name,self.age,self.weight,self.height];
+    return [NSString stringWithFormat:@"sex:%@  name:%@  age:%@  weight:%@ height:%@  hobby:%@",self.sex,self.name,self.age,self.weight,self.height,self.hobby];
     
 }
 

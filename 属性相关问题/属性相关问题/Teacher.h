@@ -16,7 +16,7 @@
 //    NSString *_sex;   // 和父类重复了
     // 父类中有个不可见的成员变量_hometown 子类中还可以声明一个
     NSString *_hometown;
-    // 父类中使用@proterty标记的height属性 生成的成员变量_height 应该不可见
+    // 父类中使用@proterty标记的height属性 生成的成员变量_height 在.m中不可见 私有的
     NSString *_height;
 }
 

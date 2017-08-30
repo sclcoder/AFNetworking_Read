@@ -1,9 +1,9 @@
 //
 //  ViewController.m
-//  NSOperation
+//  自定义NSOperation
 //
-//  Created by mac on 2017/8/28.
-//  Copyright © 2017年 yunjifen. All rights reserved.
+//  Created by 孙春磊 on 2017/8/30.
+//  Copyright © 2017年 云积分. All rights reserved.
 //
 
 #import "ViewController.h"
@@ -11,8 +11,6 @@
 #import "CustomOperation.h"
 #import "ConcurrentOperation.h"
 
-#import "Person.h"
-#import "Teacher.h"
 
 @interface ViewController ()
 
@@ -23,25 +21,10 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-
-    [self baseTest];
     
+    [self opTest];
 }
 
-- (void)baseTest{
-    
-    Teacher *t = [[Teacher alloc] init];
-    NSLog(@"%@",t.description);
-
-    
-    Person *p = [[Person alloc] init];
-    NSLog(@"%@",p.description);
-
-//    NSLog(@"%@",  p->_name); // 只有是@public的成员变量才能在任何文件中都能直接访问
-//    NSLog(@"%@",  p.age); //  间接访问
-//    NSLog(@"%@",  p->_age); // 不能直接访问
-
-}
 
 - (void)opTest{
     
@@ -61,9 +44,7 @@
     
     ConcurrentOperation *ConOP= [[ConcurrentOperation alloc] init];
     [ConOP start];
-
+    
 }
-
-
 
 @end
