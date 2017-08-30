@@ -21,6 +21,7 @@
 
 #import "AFHTTPRequestOperation.h"
 
+// 一个GCD的并发队列
 static dispatch_queue_t http_request_operation_processing_queue() {
     static dispatch_queue_t af_http_request_operation_processing_queue;
     static dispatch_once_t onceToken;
@@ -31,6 +32,7 @@ static dispatch_queue_t http_request_operation_processing_queue() {
     return af_http_request_operation_processing_queue;
 }
 
+// 一个GCD调度组
 static dispatch_group_t http_request_operation_completion_group() {
     static dispatch_group_t af_http_request_operation_completion_group;
     static dispatch_once_t onceToken;
@@ -67,12 +69,14 @@ static dispatch_group_t http_request_operation_completion_group() {
     if (!self) {
         return nil;
     }
-    //  设置了一个self.responseSerializer，
+    
+    // 为什么要在这里设置responseSerializer 在manager中会给operation设置一次
     self.responseSerializer = [AFHTTPResponseSerializer serializer];
 
     return self;
 }
 
+// 设置解析器的setter
 - (void)setResponseSerializer:(AFHTTPResponseSerializer <AFURLResponseSerialization> *)responseSerializer {
     NSParameterAssert(responseSerializer);
 
@@ -84,6 +88,8 @@ static dispatch_group_t http_request_operation_completion_group() {
 }
 
 - (id)responseObject {
+    
+    // 解析数据
     [self.lock lock];
     if (!_responseObject && [self isFinished] && !self.error) {
         NSError *error = nil;
@@ -107,36 +113,66 @@ static dispatch_group_t http_request_operation_completion_group() {
 
 #pragma mark - AFHTTPRequestOperation
 
+// 处理用户传入的block回调
 - (void)setCompletionBlockWithSuccess:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
                               failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
+    
+    // 消除循环引用警告
     // completionBlock is manually nilled out in AFURLConnectionOperation to break the retain cycle.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Warc-retain-cycles"
 #pragma clang diagnostic ignored "-Wgnu"
+    
+    // self.completionBlock这个block是NSOperation的,当operation完成后会主动回调这个block
+    
+    // 给completionBlock赋值  重写了setter
     self.completionBlock = ^{
+        
+        NSLog(@"用户设置setCompletionBlock被调用 %s",__func__);
+        
         if (self.completionGroup) {
+            // 进入GCD的group
             dispatch_group_enter(self.completionGroup);
         }
+        
 
         dispatch_async(http_request_operation_processing_queue(), ^{
-            if (self.error) {
+            
+            if (self.error) { // 如果有error说明请求失败
+                
                 if (failure) {
+                    
+                    // dispatch_group_async(,,)这种写法是一种简写方式 本质还是 dispatch_group_enter dispatch_group_leave
                     dispatch_group_async(self.completionGroup ?: http_request_operation_completion_group(), self.completionQueue ?: dispatch_get_main_queue(), ^{
+                        
+                        // 失败回调
                         failure(self, self.error);
+                        
                     });
                 }
-            } else {
+                
+            } else { // error为空 说明请求成功
+                
+                // 重写了self.responseObject方法--解析数据
                 id responseObject = self.responseObject;
-                if (self.error) {
+                
+                if (self.error) { // 解析出错
+                    
                     if (failure) {
                         dispatch_group_async(self.completionGroup ?: http_request_operation_completion_group(), self.completionQueue ?: dispatch_get_main_queue(), ^{
+                            
+                            // 失败回调
                             failure(self, self.error);
                         });
                     }
-                } else {
+                    
+                } else { // 没有解析错误
+                    
                     if (success) {
                         dispatch_group_async(self.completionGroup ?: http_request_operation_completion_group(), self.completionQueue ?: dispatch_get_main_queue(), ^{
+                            
+                            // 成功回调
                             success(self, responseObject);
                         });
                     }
@@ -144,6 +180,7 @@ static dispatch_group_t http_request_operation_completion_group() {
             }
 
             if (self.completionGroup) {
+                // 离开GCD组
                 dispatch_group_leave(self.completionGroup);
             }
         });

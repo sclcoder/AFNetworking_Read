@@ -67,6 +67,7 @@
     self.baseURL = url;
 
     self.requestSerializer = [AFHTTPRequestSerializer serializer];
+    // 默认是AFJSONResponseSerializer
     self.responseSerializer = [AFJSONResponseSerializer serializer];
 
     self.securityPolicy = [AFSecurityPolicy defaultPolicy];
@@ -137,16 +138,18 @@
                                                     success:(void (^)(AFHTTPRequestOperation *operation, id responseObject))success
                                                     failure:(void (^)(AFHTTPRequestOperation *operation, NSError *error))failure
 {
-    
-    // 方法创建了一个AFHTTPRequestOperation，并把自己的一些参数交给了这个operation处理。
+    // operation初始化
     AFHTTPRequestOperation *operation = [[AFHTTPRequestOperation alloc] initWithRequest:request];
-    // AFHTTPRequestOperation的属性
+
+    // 根据manager设置operation的部分参数
     operation.responseSerializer = self.responseSerializer;
+    
     // 这几个参数在父类AFURLConnectionOperation中的属性
     operation.shouldUseCredentialStorage = self.shouldUseCredentialStorage;
     operation.credential = self.credential;
     operation.securityPolicy = self.securityPolicy;
     
+    // 父类重写了该方法 将用户的block回调传递进去
     [operation setCompletionBlockWithSuccess:success failure:failure];
     
     operation.completionQueue = self.completionQueue;

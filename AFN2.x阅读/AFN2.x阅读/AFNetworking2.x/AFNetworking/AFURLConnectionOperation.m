@@ -198,8 +198,8 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     // 递归锁 -- 它允许同一线程多次加锁，而不会造成死锁
     // self.lock这个锁是用来提供给本类一些数据操作的线程安全，至于为什么要用递归锁，是因为有些方法可能会存在递归调用的情况，例如有些需要锁的方法可能会在一个大的操作环中，形成递归。而AF使用了递归锁，避免了这种情况下死锁的发生。
     self.lock = [[NSRecursiveLock alloc] init];
-    
     self.lock.name = kAFNetworkingLockName;
+    
     // 初始化了self.runLoopModes，默认为NSRunLoopCommonModes。
     self.runLoopModes = [NSSet setWithObject:NSRunLoopCommonModes];
 
@@ -210,6 +210,11 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
     self.securityPolicy = [AFSecurityPolicy defaultPolicy];
 
     return self;
+    
+    /**
+        初始化结束后，看似这个类中的方法的都没被执行。其实不然，由于这个类继承NSOperation，当将operation添加到Queue中后,队列会调用operation。而operation的入口方法是 start 所以,要从这个类的start方法入手。
+     */
+    
 }
 
 - (instancetype)init NS_UNAVAILABLE
@@ -417,25 +422,36 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
 #pragma mark - NSOperation
 
 - (void)setCompletionBlock:(void (^)(void))block {
+    
     [self.lock lock];
     if (!block) {
         [super setCompletionBlock:nil];
     } else {
         __weak __typeof(self)weakSelf = self;
+        
+        // 给父类NSOperation设置block回调
         [super setCompletionBlock:^ {
+            
+            NSLog(@"AF设置setCompletionBlock被调用 %s",__func__);
+            
             __strong __typeof(weakSelf)strongSelf = weakSelf;
 
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wgnu"
+            // GCD组
             dispatch_group_t group = strongSelf.completionGroup ?: url_request_operation_completion_group();
+            // 队列
             dispatch_queue_t queue = strongSelf.completionQueue ?: dispatch_get_main_queue();
 #pragma clang diagnostic pop
 
             dispatch_group_async(group, queue, ^{
+                // block回调
                 block();
             });
 
             dispatch_group_notify(group, url_request_operation_completion_queue(), ^{
+                
+                // 所有任务都完成后 清空CompletionBlock
                 [strongSelf setCompletionBlock:nil];
             });
         }];
