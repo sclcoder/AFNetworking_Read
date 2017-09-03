@@ -1005,11 +1005,38 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 }
 
 #pragma mark -
+/*** NSURLSessionDataTask
+ 
+ An NSURLSessionDataTask does not provide any additional
+ functionality over an NSURLSessionTask and its presence is merely
+ to provide lexical differentiation from download and upload tasks.
+ 
+ 一个NSURLSessionDataTask并不提供任何额外的功能在一个NSURLSessionTask仅仅是和它的存在从下载和上传任务提供词汇分化。
+ 
+ 
+ An NSURLSessionDataTask is a concrete subclass of NSURLSessionTask. The methods in the NSURLSessionDataTask class are documented in NSURLSessionTask.
+ 
+ A data task returns data directly to the app (in memory) as one or more NSData objects. When you use a data task:
+ 直接将data给内存中的app
+ 
+ During upload of the body data (if your app provides any), the session periodically calls its delegate’s URLSession:task:didSendBodyData:totalBytesSent:totalBytesExpectedToSend: method with status information.
+ 
+ After receiving an initial response, the session calls its delegate’s URLSession:dataTask:didReceiveResponse:completionHandler: method to let you examine the status code and headers, and optionally convert the data task into a download task.
+ 
+ During the transfer, the session calls its delegate’s URLSession:dataTask:didReceiveData: method to provide your app with the content as it arrives.
+ 
+ Upon completion, the session calls its delegate’s URLSession:dataTask:willCacheResponse:completionHandler: method to let you determine whether the response should be cached.
+ 
+ */
 
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
                             completionHandler:(void (^)(NSURLResponse *response, id responseObject, NSError *error))completionHandler
 {
-    return [self dataTaskWithRequest:request uploadProgress:nil downloadProgress:nil completionHandler:completionHandler];
+    return [self
+            dataTaskWithRequest:request
+            uploadProgress:nil
+            downloadProgress:nil
+            completionHandler:completionHandler];
 }
 
 - (NSURLSessionDataTask *)dataTaskWithRequest:(NSURLRequest *)request
@@ -1034,7 +1061,22 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 }
 
 #pragma mark -
-
+/** NSURLSessionUploadTask 继承自NSURLSessionDataTask
+ 
+ An NSURLSessionUploadTask does not currently provide any additional
+ functionality over an NSURLSessionDataTask.  All delegate messages
+ that may be sent referencing an NSURLSessionDataTask equally apply
+ to NSURLSessionUploadTasks.
+ 
+ The NSURLSessionUploadTask class is a subclass of NSURLSessionDataTask, which in turn is a concrete subclass of NSURLSessionTask. The methods associated with the NSURLSessionUploadTask class are documented in NSURLSessionTask.
+ 
+ Upload tasks are used for making HTTP requests that require a request body (such as POST or PUT). They behave similarly to data tasks, but you create them by calling different methods on the session that are designed to make it easier to provide the content to upload. As with data tasks, if the server provides a response, upload tasks return that response as one or more NSData objects in memory.
+ Note
+ Unlike data tasks, you can use upload tasks to upload content in the background. (For details, see URL Session Programming Guide.)
+ When you create an upload task, you provide an NSURLRequest or NSMutableURLRequest object that contains any additional headers that you might need to send alongside the upload, such as the content type, content disposition, and so on. In iOS, when you create an upload task for a file in a background session, the system copies that file to a temporary location and streams data from there.
+ While the upload is in progress, the task calls the session delegate’s URLSession:task:didSendBodyData:totalBytesSent:totalBytesExpectedToSend: method periodically to provide you with status information.
+ When the upload phase of the request finishes, the task behaves like a data task, calling methods on the session delegate to provide you with the server’s response—headers, status code, content data, and so on
+ */
 - (NSURLSessionUploadTask *)uploadTaskWithRequest:(NSURLRequest *)request
                                          fromFile:(NSURL *)fileURL
                                          progress:(void (^)(NSProgress *uploadProgress)) uploadProgressBlock
@@ -1042,6 +1084,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 {
     __block NSURLSessionUploadTask *uploadTask = nil;
     url_session_manager_create_task_safely(^{
+        // 创建dataTask
         uploadTask = [self.session uploadTaskWithRequest:request fromFile:fileURL];
     });
 
@@ -1072,6 +1115,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     return uploadTask;
 }
 
+// formData的方式上传
 - (NSURLSessionUploadTask *)uploadTaskWithStreamedRequest:(NSURLRequest *)request
                                                  progress:(void (^)(NSProgress *uploadProgress)) uploadProgressBlock
                                         completionHandler:(void (^)(NSURLResponse *response, id responseObject, NSError *error))completionHandler
@@ -1088,6 +1132,21 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 
 #pragma mark -
 
+/** NSURLSessionDownloadTask 继承NSURLSessionTask
+ 
+ An NSURLSessionDownloadTask is a concrete subclass of NSURLSessionTask. Most of the methods associated with this class are documented in NSURLSessionTask.
+ 
+ Download tasks directly write the server’s response data to a temporary file, providing your app with progress updates as data arrives from the server. When you use download tasks in background sessions, these downloads continue even when your app is suspended or is otherwise not running.
+ 
+ You can pause (cancel) download tasks and resume them later (assuming the server supports doing so). You can also resume downloads that failed because of network connectivity problems.
+ 
+ When you use download tasks:
+ 
+ During download, the session periodically calls the delegate’s URLSession:downloadTask:didWriteData:totalBytesWritten:totalBytesExpectedToWrite: method with status information.
+ Upon successful completion, the session calls the delegate’s URLSession:downloadTask:didFinishDownloadingToURL: method or completion handler. In that method, you must either open the file for reading or move it to a permanent location in your app’s sandbox container directory.
+ Upon unsuccessful completion, the session calls the delegate’s URLSession:task:didCompleteWithError: method or completion handler. Unlike NSURLSessionDataTask or NSURLSessionUploadTask, NSURLSessionDownloadTask reports server-side errors reported through HTTP status codes into corresponding NSError objects:
+
+ */
 - (NSURLSessionDownloadTask *)downloadTaskWithRequest:(NSURLRequest *)request
                                              progress:(void (^)(NSProgress *downloadProgress)) downloadProgressBlock
                                           destination:(NSURL * (^)(NSURL *targetPath, NSURLResponse *response))destination
