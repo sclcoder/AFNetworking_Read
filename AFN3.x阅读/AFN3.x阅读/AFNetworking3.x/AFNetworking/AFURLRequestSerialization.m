@@ -584,10 +584,12 @@ forHTTPHeaderField:(NSString *)field
         if (!query) {
             query = @"";
         }
+        // x-www-form-urlencoded 方式
         if (![mutableRequest valueForHTTPHeaderField:@"Content-Type"]) {
             [mutableRequest setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
         }
-        // 设置请求体
+        //  NSData *HTTPBody
+        // 设置请求体 编码后的NSData (NSUTF8StringEncoding默认编码方式)
         [mutableRequest setHTTPBody:[query dataUsingEncoding:self.stringEncoding]];
     }
 
@@ -1306,7 +1308,7 @@ typedef enum {
                                         error:(NSError *__autoreleasing *)error
 {
     NSParameterAssert(request);
-
+    // 如果是GET HEAD DELETE 请求就到父类AFHTTPRequestSerializer中处理
     if ([self.HTTPMethodsEncodingParametersInURI containsObject:[[request HTTPMethod] uppercaseString]]) {
         return [super requestBySerializingRequest:request withParameters:parameters error:error];
     }
@@ -1320,6 +1322,8 @@ typedef enum {
     }];
 
     if (parameters) {
+            // 设置请求头 Content-Type
+            // json方式
         if (![mutableRequest valueForHTTPHeaderField:@"Content-Type"]) {
             [mutableRequest setValue:@"application/json" forHTTPHeaderField:@"Content-Type"];
         }
@@ -1337,7 +1341,7 @@ typedef enum {
         if (!jsonData) {
             return nil;
         }
-        
+        // 设置请求体 是JsonData
         [mutableRequest setHTTPBody:jsonData];
     }
 
@@ -1399,8 +1403,9 @@ typedef enum {
                                         error:(NSError *__autoreleasing *)error
 {
     NSParameterAssert(request);
-
+    
     if ([self.HTTPMethodsEncodingParametersInURI containsObject:[[request HTTPMethod] uppercaseString]]) {
+        // 调用父类方法
         return [super requestBySerializingRequest:request withParameters:parameters error:error];
     }
 
@@ -1413,6 +1418,7 @@ typedef enum {
     }];
 
     if (parameters) {
+        // 设置contenteType
         if (![mutableRequest valueForHTTPHeaderField:@"Content-Type"]) {
             [mutableRequest setValue:@"application/x-plist" forHTTPHeaderField:@"Content-Type"];
         }
@@ -1422,7 +1428,7 @@ typedef enum {
         if (!plistData) {
             return nil;
         }
-        
+        // 设置请求体为 plistData
         [mutableRequest setHTTPBody:plistData];
     }
 
