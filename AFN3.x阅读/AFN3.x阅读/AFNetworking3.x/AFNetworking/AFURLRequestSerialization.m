@@ -448,9 +448,10 @@ forHTTPHeaderField:(NSString *)field
 {
     NSParameterAssert(method);
     NSParameterAssert(![method isEqualToString:@"GET"] && ![method isEqualToString:@"HEAD"]);
-
+    // 生成request
     NSMutableURLRequest *mutableRequest = [self requestWithMethod:method URLString:URLString parameters:nil error:error];
 
+    //
     __block AFStreamingMultipartFormData *formData = [[AFStreamingMultipartFormData alloc] initWithURLRequest:mutableRequest stringEncoding:NSUTF8StringEncoding];
 
     if (parameters) {
@@ -470,10 +471,10 @@ forHTTPHeaderField:(NSString *)field
         }
     }
 
-    if (block) {
+    if (block) { // 回调用户block
         block(formData);
     }
-
+    // 生成最终的request
     return [formData requestByFinalizingMultipartFormData];
 }
 
