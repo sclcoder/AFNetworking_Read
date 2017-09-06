@@ -16,6 +16,9 @@
 
 @property(nonatomic,copy) NSString *hobby;
 
+@property(nonatomic,copy,readwrite) NSString *wife;
+
+
 @end
 
 
@@ -40,6 +43,16 @@
     }
     return self;
 }
+
+
+- (void)setWife:(NSString *)wife{
+
+    _wife = [wife copy];
+    
+}
+
+
+
 
 
 - (NSString *)description{

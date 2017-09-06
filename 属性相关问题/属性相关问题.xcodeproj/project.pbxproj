@@ -7,25 +7,25 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		04BA96C81F5FDFB200FECB55 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04BA96C71F5FDFB200FECB55 /* Main.storyboard */; };
+		04BA96CA1F5FE00600FECB55 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 04BA96C91F5FE00600FECB55 /* LaunchScreen.storyboard */; };
 		2ACA7EAF1F5703200056D483 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ACA7EAE1F5703200056D483 /* AppDelegate.m */; };
 		2ACA7EB21F5703200056D483 /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ACA7EB11F5703200056D483 /* ViewController.m */; };
-		2ACA7EB51F5703200056D483 /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2ACA7EB31F5703200056D483 /* Main.storyboard */; };
 		2ACA7EB71F5703200056D483 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2ACA7EB61F5703200056D483 /* Assets.xcassets */; };
-		2ACA7EBA1F5703200056D483 /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 2ACA7EB81F5703200056D483 /* LaunchScreen.storyboard */; };
 		2ACA7EBD1F5703200056D483 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ACA7EBC1F5703200056D483 /* main.m */; };
 		2ACA7EC71F57033D0056D483 /* Person.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ACA7EC61F5703330056D483 /* Person.m */; };
 		2ACA7EC81F57033D0056D483 /* Teacher.m in Sources */ = {isa = PBXBuildFile; fileRef = 2ACA7EC31F5703330056D483 /* Teacher.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		04BA96C71F5FDFB200FECB55 /* Main.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = Main.storyboard; sourceTree = "<group>"; };
+		04BA96C91F5FE00600FECB55 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
 		2ACA7EAA1F5703200056D483 /* 属性相关问题.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "属性相关问题.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2ACA7EAD1F5703200056D483 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
 		2ACA7EAE1F5703200056D483 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		2ACA7EB01F5703200056D483 /* ViewController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ViewController.h; sourceTree = "<group>"; };
 		2ACA7EB11F5703200056D483 /* ViewController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ViewController.m; sourceTree = "<group>"; };
-		2ACA7EB41F5703200056D483 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		2ACA7EB61F5703200056D483 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		2ACA7EB91F5703200056D483 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		2ACA7EBB1F5703200056D483 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		2ACA7EBC1F5703200056D483 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		2ACA7EC31F5703330056D483 /* Teacher.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = Teacher.m; sourceTree = "<group>"; };
@@ -72,9 +72,9 @@
 				2ACA7EAE1F5703200056D483 /* AppDelegate.m */,
 				2ACA7EB01F5703200056D483 /* ViewController.h */,
 				2ACA7EB11F5703200056D483 /* ViewController.m */,
-				2ACA7EB31F5703200056D483 /* Main.storyboard */,
+				04BA96C71F5FDFB200FECB55 /* Main.storyboard */,
 				2ACA7EB61F5703200056D483 /* Assets.xcassets */,
-				2ACA7EB81F5703200056D483 /* LaunchScreen.storyboard */,
+				04BA96C91F5FE00600FECB55 /* LaunchScreen.storyboard */,
 				2ACA7EBB1F5703200056D483 /* Info.plist */,
 				2ACA7EBC1F5703200056D483 /* main.m */,
 			);
@@ -138,9 +138,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2ACA7EBA1F5703200056D483 /* LaunchScreen.storyboard in Resources */,
+				04BA96CA1F5FE00600FECB55 /* LaunchScreen.storyboard in Resources */,
+				04BA96C81F5FDFB200FECB55 /* Main.storyboard in Resources */,
 				2ACA7EB71F5703200056D483 /* Assets.xcassets in Resources */,
-				2ACA7EB51F5703200056D483 /* Main.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -160,25 +160,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXVariantGroup section */
-		2ACA7EB31F5703200056D483 /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				2ACA7EB41F5703200056D483 /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
-		2ACA7EB81F5703200056D483 /* LaunchScreen.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				2ACA7EB91F5703200056D483 /* Base */,
-			);
-			name = LaunchScreen.storyboard;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		2ACA7EBE1F5703200056D483 /* Debug */ = {
@@ -291,6 +272,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = MYDTTEQ9YB;
 				INFOPLIST_FILE = "属性相关问题/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "yunjifen.------";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -304,6 +286,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				DEVELOPMENT_TEAM = MYDTTEQ9YB;
 				INFOPLIST_FILE = "属性相关问题/Info.plist";
+				IPHONEOS_DEPLOYMENT_TARGET = 8.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
 				PRODUCT_BUNDLE_IDENTIFIER = "yunjifen.------";
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -330,6 +313,7 @@
 				2ACA7EC21F5703200056D483 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};

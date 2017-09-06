@@ -11,6 +11,15 @@
 #import "Person.h"
 #import "Teacher.h"
 
+
+@interface Person (wife)
+// 分类生成方法getter和seter声明
+@property(nonatomic,copy) NSString *wife;
+
+
+@end
+
+
 @interface ViewController ()
 
 @end
@@ -28,6 +37,8 @@
     Person *p = [[Person alloc] init];
     NSLog(@"%@",p.description);
 
+    
+    p.wife = @"beauty";
     
 }
 

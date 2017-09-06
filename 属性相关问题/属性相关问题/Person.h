@@ -41,8 +41,10 @@
 @property(nonatomic,copy) NSString *age;
 @property(nonatomic,copy) NSString *weight;
 
-// 通过@property 自动生成的成员变量 相当于在.m文件 对外不可见
+// 通过@property 自动生成的成员变量 是私有的
 @property(nonatomic,copy) NSString *height;
+
+@property(nonatomic,copy,readonly) NSString *wife;
 
 
 
