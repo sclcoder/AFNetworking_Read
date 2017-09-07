@@ -133,6 +133,17 @@ typedef void (^AFURLSessionTaskProgressBlock)(NSProgress *);
 typedef void (^AFURLSessionTaskCompletionHandler)(NSURLResponse *response, id responseObject, NSError *error);
 
 
+
+
+
+/**
+ NSURLSessionDataTask  //一般的get、post等请求
+ NSURLSessionUploadTask // 用于上传文件或者数据量比较大的请求
+ NSURLSessionDownloadTask //用于下载文件或者数据量比较大的请求
+ NSURLSessionStreamTask //建立一个TCP / IP连接的主机名和端口或一个网络服务对象。
+
+ */
+
 #pragma mark -
 
 @interface AFURLSessionManagerTaskDelegate : NSObject <NSURLSessionTaskDelegate, NSURLSessionDataDelegate, NSURLSessionDownloadDelegate>
@@ -235,7 +246,7 @@ didCompleteWithError:(NSError *)error
     //Performance Improvement from #2672
     //注意这行代码的用法，感觉写的很Nice...把请求到的数据data传出去，然后就不要这个值了释放内存
     NSData *data = nil;
-    // 当是downloadTask是self.mutableData不会拼接下载的data的 这时 data = <>
+    // 当是downloadTask时self.mutableData不会拼接下载的data的 这时 data = <>
     if (self.mutableData) {
         // 服务端返回响应数据 二进制
         data = [self.mutableData copy];
@@ -273,14 +284,10 @@ didCompleteWithError:(NSError *)error
         dispatch_async(url_session_manager_processing_queue(), ^{
             NSError *serializationError = nil;
             // 解析数据 ---使用并发队列异步解析
-            /**
-             一个协议方法，各种类型的responseSerializer类，都是遵守这个协议方法，实现了一个把我们请求到的data转换为我们需要的类型的数据的方法
-             */
-            responseObject = [manager.responseSerializer responseObjectForResponse:task.response data:data error:&serializationError];
             
             /**
              task.response 响应信息
-    
+             
              <NSHTTPURLResponse: 0x170031480> { URL: http://test.yunshangzuke.com:8080/api/v1/users/leases } { status code: 200, headers {
              "X-Application-Context" = application:product:8080,
              "Transfer-Encoding" = Identity,
@@ -291,10 +298,20 @@ didCompleteWithError:(NSError *)error
              data : server返回二进制数据
              */
 
+            /**
+             一个协议方法，各种类型的responseSerializer类，都是遵守这个协议方法，实现了一个把我们请求得到的response和data传给解析器解析
+             downloadTask请求回来的data被写到临时文件中了 在此处data是空 只有response
+             */
+            responseObject = [manager.responseSerializer responseObjectForResponse:task.response data:data error:&serializationError];
+
             // 如果是下载文件，那么responseObject为下载的路径
             if (self.downloadFileURL) {
                 responseObject = self.downloadFileURL;
             }
+            
+            
+            
+            
             // 写入userInfo
             if (responseObject) {
                 userInfo[AFNetworkingTaskDidCompleteSerializedResponseKey] = responseObject;
@@ -386,8 +403,13 @@ didFinishDownloadingToURL:(NSURL *)location
             // 把下载路径移动到我们自定义的下载路径
             NSError *fileManagerError = nil;
 
+            /**
+             If an item with the same name already exists at dstURL, this method stops the move attempt and returns an appropriate error. If the last component of srcURL is a symbolic link, only the link is moved to the new path; the item pointed to by the link remains at its current location.
+             */
+            // 如果移动的‘文件名’已经存在会移动失败
             if (![[NSFileManager defaultManager] moveItemAtURL:location toURL:self.downloadFileURL error:&fileManagerError]) {
                 // 错误发通知
+           
                 [[NSNotificationCenter defaultCenter] postNotificationName:AFURLSessionDownloadTaskDidFailToMoveFileNotification object:downloadTask userInfo:fileManagerError.userInfo];
             }
         }
@@ -849,6 +871,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
              completionHandler:(void (^)(NSURLResponse *response, id responseObject, NSError *error))completionHandler
 {
     // 创建AFURLSessionManagerTaskDelegate 并初始化
+    // 对task的下载和上传进度进行了KVO
     AFURLSessionManagerTaskDelegate *delegate = [[AFURLSessionManagerTaskDelegate alloc] initWithTask:dataTask];
     
     // AFURLSessionManagerTaskDelegate与AFURLSessionManager建立相互关系
@@ -1051,6 +1074,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     // 调用了一个url_session_manager_create_task_safely()函数，传了一个Block进去，Block里就是iOS原生生成dataTask的方法
     url_session_manager_create_task_safely(^{
         // ios8以上直接创建dataTask
+#pragma mark - dataTaskWithRequest
         dataTask = [self.session dataTaskWithRequest:request];
     });
 
@@ -1084,7 +1108,9 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 {
     __block NSURLSessionUploadTask *uploadTask = nil;
     url_session_manager_create_task_safely(^{
-        // 创建dataTask
+        // 创建uploadTask
+#pragma mark - uploadTaskWithRequest
+
         uploadTask = [self.session uploadTaskWithRequest:request fromFile:fileURL];
     });
 
@@ -1107,6 +1133,8 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 {
     __block NSURLSessionUploadTask *uploadTask = nil;
     url_session_manager_create_task_safely(^{
+
+#pragma mark - uploadTaskWithRequest
         uploadTask = [self.session uploadTaskWithRequest:request fromData:bodyData];
     });
 
@@ -1122,6 +1150,8 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 {
     __block NSURLSessionUploadTask *uploadTask = nil;
     url_session_manager_create_task_safely(^{
+        
+#pragma mark - uploadTaskWithRequest
         uploadTask = [self.session uploadTaskWithStreamedRequest:request];
     });
 
@@ -1136,6 +1166,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
  
  An NSURLSessionDownloadTask is a concrete subclass of NSURLSessionTask. Most of the methods associated with this class are documented in NSURLSessionTask.
  
+ // Download tasks直接将服务器的Response Data写到一个临时文件中
  Download tasks directly write the server’s response data to a temporary file, providing your app with progress updates as data arrives from the server. When you use download tasks in background sessions, these downloads continue even when your app is suspended or is otherwise not running.
  
  You can pause (cancel) download tasks and resume them later (assuming the server supports doing so). You can also resume downloads that failed because of network connectivity problems.
@@ -1803,6 +1834,8 @@ didBecomeDownloadTask:(NSURLSessionDownloadTask *)downloadTask
 }
 
 #pragma mark - NSURLSessionDownloadDelegate
+
+// AFN使用的是NSURLSession 而在URLSession中的downloadTask任务中 下载的文件被NSURLSession存在一个临时文件中了 所以当下载完成时 需要将文件移走
 /* Sent when a download task that has completed a download.  The delegate should
  * copy or move the file at the given location to a new location as it will be
  * removed when the delegate message returns. URLSession:task:didCompleteWithError: will
@@ -1834,8 +1867,7 @@ didFinishDownloadingToURL:(NSURL *)location
         // NSUrlSession代理的下载路径是所有request公用的下载路径，一旦设置，所有的request都会下载到之前那个路径
         NSURL *fileURL = self.downloadTaskDidFinishDownloading(session, downloadTask, location);
         
-        //
-        
+        // https://github.com/AFNetworking/AFNetworking/issues/3775 AFN存在的问题
         if (fileURL) {
             delegate.downloadFileURL = fileURL;
             NSError *error = nil;
@@ -1873,12 +1905,17 @@ didFinishDownloadingToURL:(NSURL *)location
  totalBytesExpectedToWrite 表示期望收到的文件总字节数，是由Content-Length header提供。如果没有提供，默认是NSURLSessionTransferSizeUnknown
  */
 // 多条线程回调 从断点上看会有不同的线程会回调此方法
+
+// NSURLSessionDownloadTask :  Download tasks directly write the server’s response data to a temporary file
 - (void)URLSession:(NSURLSession *)session
       downloadTask:(NSURLSessionDownloadTask *)downloadTask
       didWriteData:(int64_t)bytesWritten
  totalBytesWritten:(int64_t)totalBytesWritten
 totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite
 {
+    
+    // NSURLSessionDownloadTask :  Download tasks directly write the server’s response data to a temporary file
+    // 下载任务会将服务器的response data写入一个临时文件中 内存不会爆炸
     
     AFURLSessionManagerTaskDelegate *delegate = [self delegateForTask:downloadTask];
     // 转发代理方法
