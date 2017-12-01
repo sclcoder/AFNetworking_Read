@@ -188,7 +188,7 @@ NSArray * AFQueryStringPairsFromKeyAndValue(NSString *key, id value) {
      field: @"nums", value: @"2",
      ]
      ->
-     name=bang&phone[mobile]=xx&phone[home]=xx&families[]=father&families[]=mother&nums=1&num=2
+     name=bang&phone[mobile]=xx&phone[home]=xx&families[]=father&families[]=mother&nums=1&nums=2
      
      
      */
@@ -293,7 +293,7 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
     // self.mutableObservedChangedKeyPaths其实就是我们自己设置的request属性值的集合。
     self.mutableObservedChangedKeyPaths = [NSMutableSet set];
     // 给自己这些方法添加观察者为自己，就是request的各种属性，set方法
-    // KVO触发的方法在  560行
+    // KVO触发的方法在  605行
     for (NSString *keyPath in AFHTTPRequestSerializerObservedKeyPaths()) {
         if ([self respondsToSelector:NSSelectorFromString(keyPath)]) {
             [self addObserver:self forKeyPath:keyPath options:NSKeyValueObservingOptionNew context:AFHTTPRequestSerializerObserverContext];
@@ -428,7 +428,7 @@ forHTTPHeaderField:(NSString *)field
 //    AFHTTPRequestSerializerObservedKeyPaths() 就是封装了一些属性的名字，这些都是NSUrlRequest的属性
     for (NSString *keyPath in AFHTTPRequestSerializerObservedKeyPaths()) {
         // 如果自己观察到的发生变化的属性在这些方法里
-        // mutableObservedChangedKeyPaths 在-init方法对这个集合进行了初始化，并且对当前类的和NSUrlRequest相关的那些属性添加了KVO监听  在253行
+        // mutableObservedChangedKeyPaths 在-init方法对这个集合进行了初始化，并且对当前类的和NSUrlRequest相关的那些属性添加了KVO监听  在294行
         if ([self.mutableObservedChangedKeyPaths containsObject:keyPath]) {
             // 用KVC的方式，把属性值都设置到我们请求的request中去。
             [mutableRequest setValue:[self valueForKeyPath:keyPath] forKey:keyPath];
@@ -448,13 +448,33 @@ forHTTPHeaderField:(NSString *)field
 {
     NSParameterAssert(method);
     NSParameterAssert(![method isEqualToString:@"GET"] && ![method isEqualToString:@"HEAD"]);
-    // 生成request
+    // 生成request 注意：此时传入的参数是nil
     NSMutableURLRequest *mutableRequest = [self requestWithMethod:method URLString:URLString parameters:nil error:error];
 
-    //
+    // 初始化AFStreamingMultipartFormData 构建bodyStream
     __block AFStreamingMultipartFormData *formData = [[AFStreamingMultipartFormData alloc] initWithURLRequest:mutableRequest stringEncoding:NSUTF8StringEncoding];
 
     if (parameters) {
+        //  构建一个AFQueryStringPair，其中field为"Filename"，value为"文件名"
+        
+        /** parameters
+         @{
+         @"name" : @"bang",
+         @"phone": @{@"mobile": @"xx", @"home": @"xx"},
+         @"families": @[@"father", @"mother"],
+         @"nums": [NSSet setWithObjects:@"1", @"2", nil]
+         }
+         -> AFQueryStringPair
+         @[
+         field: @"name", value: @"bang",
+         field: @"phone[mobile]", value: @"xx",
+         field: @"phone[home]", value: @"xx",
+         field: @"families[]", value: @"father",
+         field: @"families[]", value: @"mother",
+         field: @"nums", value: @"1",
+         field: @"nums", value: @"2",
+         ]
+         */
         for (AFQueryStringPair *pair in AFQueryStringPairsFromDictionary(parameters)) {
             NSData *data = nil;
             if ([pair.value isKindOfClass:[NSData class]]) {
@@ -462,19 +482,25 @@ forHTTPHeaderField:(NSString *)field
             } else if ([pair.value isEqual:[NSNull null]]) {
                 data = [NSData data];
             } else {
+                //  根据对应value的类型，构建出一个NSData变量    把string类型转换为NSData类型数据
                 data = [[pair.value description] dataUsingEncoding:self.stringEncoding];
             }
 
             if (data) {
+                //  根据data和name构建Request的header和body
+                //  AFStreamingMultipartFormData的方法-拼接request一般参数
                 [formData appendPartWithFormData:data name:[pair.field description]];
             }
         }
     }
 
     if (block) { // 回调用户block
+        // 往formData中添加数据
         block(formData);
     }
     // 生成最终的request
+    // 设置一下MultipartRequest的bodyStream或者其特有的content-type
+    // 将所有请求参数拼接好
     return [formData requestByFinalizingMultipartFormData];
 }
 
@@ -590,7 +616,7 @@ forHTTPHeaderField:(NSString *)field
             [mutableRequest setValue:@"application/x-www-form-urlencoded" forHTTPHeaderField:@"Content-Type"];
         }
         //  NSData *HTTPBody
-        // 设置请求体 编码后的NSData (NSUTF8StringEncoding默认编码方式)
+        // 设置请求体 一段query串编码后的NSData (NSUTF8StringEncoding默认编码方式)
         [mutableRequest setHTTPBody:[query dataUsingEncoding:self.stringEncoding]];
     }
 
@@ -837,6 +863,7 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
     [self.bodyStream appendHTTPBodyPart:bodyPart];
 }
 
+// form-data拼接文件参数
 - (void)appendPartWithFileData:(NSData *)data
                           name:(NSString *)name
                       fileName:(NSString *)fileName
@@ -853,6 +880,7 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
     [self appendPartWithHeaders:mutableHeaders body:data];
 }
 
+// form-data拼接一般请求参数
 - (void)appendPartWithFormData:(NSData *)data
                           name:(NSString *)name
 {
@@ -868,14 +896,15 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
                          body:(NSData *)body
 {
     NSParameterAssert(body);
-
+    // 表单必要的数据组装
     AFHTTPBodyPart *bodyPart = [[AFHTTPBodyPart alloc] init];
     bodyPart.stringEncoding = self.stringEncoding;
     bodyPart.headers = headers;
     bodyPart.boundary = self.boundary;
     bodyPart.bodyContentLength = [body length];
     bodyPart.body = body;
-
+    
+    // 将需要的bodyPart模块保存到数组中
     [self.bodyStream appendHTTPBodyPart:bodyPart];
 }
 
@@ -892,9 +921,12 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
     }
 
     // Reset the initial and final boundaries to ensure correct Content-Length
+    // 重设边界 保证正确的Content-Length
     [self.bodyStream setInitialAndFinalBoundaries];
+    // 设置HTTPBodyStream
     [self.request setHTTPBodyStream:self.bodyStream];
 
+    // 设置请求头
     [self.request setValue:[NSString stringWithFormat:@"multipart/form-data; boundary=%@", self.boundary] forHTTPHeaderField:@"Content-Type"];
     [self.request setValue:[NSString stringWithFormat:@"%llu", [self.bodyStream contentLength]] forHTTPHeaderField:@"Content-Length"];
 
