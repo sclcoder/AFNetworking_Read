@@ -1583,13 +1583,6 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     if (completionHandler) {
         completionHandler(inputStream);
     }
-    /**
-     该代理方法会在下面两种情况被调用：
-     
-     如果task是由uploadTaskWithStreamedRequest:创建的，那么提供初始的request body stream时候会调用该代理方法。
-     因为认证挑战或者其他可恢复的服务器错误，而导致需要客户端重新发送一个含有body stream的request，这时候会调用该代理。
-     */
-    
 }
 
 /*
