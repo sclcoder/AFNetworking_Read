@@ -21,9 +21,14 @@
 // THE SOFTWARE.
 
 #import <Foundation/Foundation.h>
-#import <Availability.h>
+// 一些系统版本的宏
+//#import <Availability.h>
+// 用来判断当前编译器的类型的宏
 #import <TargetConditionals.h>
 
+/**
+ 通过对_AFNETWORKING_宏判断 防止文件的多次引用
+ */
 #ifndef _AFNETWORKING_
     #define _AFNETWORKING_
 
@@ -31,7 +36,7 @@
     #import "AFURLResponseSerialization.h"
     #import "AFSecurityPolicy.h"
 
-#if !TARGET_OS_WATCH
+#if !TARGET_OS_WATCH // apple watch
     #import "AFNetworkReachabilityManager.h"
 #endif
 
