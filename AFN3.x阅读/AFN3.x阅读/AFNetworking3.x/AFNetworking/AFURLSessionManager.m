@@ -137,15 +137,15 @@ typedef void (^AFURLSessionTaskCompletionHandler)(NSURLResponse *response, id re
 
 
 /**
- NSURLSessionDataTask  //一般的get、post等请求
- NSURLSessionUploadTask // 用于上传文件或者数据量比较大的请求
- NSURLSessionDownloadTask //用于下载文件或者数据量比较大的请求
- NSURLSessionStreamTask //建立一个TCP / IP连接的主机名和端口或一个网络服务对象。
+ NSURLSessionDataTask  // 一般的get、post等请求----请求得到数据存放在内存中
+ NSURLSessionUploadTask // 用于上传文件或者数据量比较大的请求 -----可以上传本地文件、流
+ NSURLSessionDownloadTask // 用于下载文件或者数据量比较大的请求-----下载的文件会临时写入沙盒
+ NSURLSessionStreamTask // 建立一个TCP/IP连接的主机名和端口或一个网络服务对象。
 
  */
 
 #pragma mark -
-
+// 所有的task都有此代理来处理--所以遵循NSURLSessionTaskDelegate、NSURLSessionDataDelegate、NSURLSessionDownloadDelegate等不同类型task的代理方法
 @interface AFURLSessionManagerTaskDelegate : NSObject <NSURLSessionTaskDelegate, NSURLSessionDataDelegate, NSURLSessionDownloadDelegate>
 - (instancetype)initWithTask:(NSURLSessionTask *)task;
 @property (nonatomic, weak) AFURLSessionManager *manager;
@@ -168,30 +168,34 @@ typedef void (^AFURLSessionTaskCompletionHandler)(NSURLResponse *response, id re
     }
     
     _mutableData = [NSMutableData data];
+
+// MARK:<NSProgress 需要深入了解这个类>
     _uploadProgress = [[NSProgress alloc] initWithParent:nil userInfo:nil];
     _downloadProgress = [[NSProgress alloc] initWithParent:nil userInfo:nil];
     
     __weak __typeof__(task) weakTask = task;
+    // 配置_uploadProgress、_downloadProgress
     for (NSProgress *progress in @[ _uploadProgress, _downloadProgress ])
     {
         progress.totalUnitCount = NSURLSessionTransferSizeUnknown;
         progress.cancellable = YES;
-        progress.cancellationHandler = ^{
+        progress.cancellationHandler = ^{ // 取消的回调--取消任务
             [weakTask cancel];
         };
         progress.pausable = YES;
-        progress.pausingHandler = ^{
+        progress.pausingHandler = ^{ // 暂停回调--任务挂起
             [weakTask suspend];
         };
+        // setResumingHandler: 该方法iOS9之后可以使用
         if ([progress respondsToSelector:@selector(setResumingHandler:)]) {
             progress.resumingHandler = ^{
-                [weakTask resume];
+                [weakTask resume]; // 任务恢复
             };
         }
         [progress addObserver:self
                    forKeyPath:NSStringFromSelector(@selector(fractionCompleted))
                       options:NSKeyValueObservingOptionNew
-                      context:NULL];
+                      context:NULL]; // 监听完成进度
     }
     return self;
 }
@@ -202,15 +206,17 @@ typedef void (^AFURLSessionTaskCompletionHandler)(NSURLResponse *response, id re
 }
 
 #pragma mark - NSProgress Tracking
-
+// downloadProgress、uploadProgress进度更新回调（KVO）
 - (void)observeValueForKeyPath:(NSString *)keyPath ofObject:(id)object change:(NSDictionary<NSString *,id> *)change context:(void *)context {
    if ([object isEqual:self.downloadProgress]) {
         if (self.downloadProgressBlock) {
+            // 使用者传入的下载进度回调
             self.downloadProgressBlock(object);
         }
     }
     else if ([object isEqual:self.uploadProgress]) {
         if (self.uploadProgressBlock) {
+            // 使用者传入的上传进度回调
             self.uploadProgressBlock(object);
         }
     }
@@ -233,7 +239,7 @@ didCompleteWithError:(NSError *)error
 {
     // 所有的指针变量默认都是__strong类型,我们通常省略不写__strong
     // delegate中的AFURLSessionManager使用weak方式引用 这里使用__strong 防止被释放
-    // 1）强引用self.manager，防止被提前释放；因为self.manager声明为weak,类似Block
+    // 1）强引用self.manager，防止被提前释放；因为self.manager声明为weak
     __strong AFURLSessionManager *manager = self.manager;
 
     __block id responseObject = nil;
@@ -394,7 +400,7 @@ didFinishDownloadingToURL:(NSURL *)location
 {
     self.downloadFileURL = nil;
     // AFSessionManager也有个downloadTaskDidFinishDownloading 1750行
-    // 这个是“AFURLSessionManagerTaskDelegate”自定义的block(内部是用户自定义的block 看 900 行)
+    // 此处的downloadTaskDidFinishDownloading是“AFURLSessionManagerTaskDelegate”的一个属性block(内部是用户自定义的block 看 900 行)
     // 这个是对应的每个task的，每个task可以设置各自下载路径
     if (self.downloadTaskDidFinishDownloading) {
         // 得到用户自定义下载路径
@@ -418,7 +424,7 @@ didFinishDownloadingToURL:(NSURL *)location
     /**
      a.之前的NSURLSession的代理和这里的AFURLSessionManagerTaskDelegate都移动了文件到下载路径，而NSUrlSession代理的下载路径是所有request公用的下载路径，一旦设置，所有的request都会下载到之前那个路径。
      
-     b.而这个是对应的每个task的，每个task可以设置各自下载路径 ?? 
+     b.而这个是对应的每个task的，每个task可以设置各自下载路径
      解析 需要看在AFHTTPSessionManager中的一个方法
      - (NSURLSessionDownloadTask *)downloadTaskWithRequest:(NSURLRequest *)request
      progress:(nullable void (^)(NSProgress *downloadProgress))downloadProgressBlock
@@ -713,7 +719,6 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     return [self initWithSessionConfiguration:nil];
 }
 
-
 //  AF3.x最最核心的类AFURLSessionManager。几乎所有的类都是围绕着这个类在处理业务逻辑。
 - (instancetype)initWithSessionConfiguration:(NSURLSessionConfiguration *)configuration {
     self = [super init];
@@ -729,9 +734,10 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 
     self.operationQueue = [[NSOperationQueue alloc] init];
     
-    // 这个operationQueue就是我们代理回调的queue。这里把代理回调的线程并发数设置为1了。至于这里为什么要这么做，我们先留一个坑，等我们讲完AF2.x之后再来分析这一块。
-    self.operationQueue.maxConcurrentOperationCount = 1;
+// TODO: <这个operationQueue就是我们代理回调的queue。这里把代理回调的线程并发数设置为1了。至于这里为什么要这么做，我们先留一个坑，等我们讲完AF2.x之后再来分析这一块>
     
+    self.operationQueue.maxConcurrentOperationCount = 1;
+
     
     /**
      + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration delegate:(nullable id <NSURLSessionDelegate>)delegate delegateQueue:(nullable NSOperationQueue *)queue;
@@ -740,7 +746,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     // 注意代理，代理的继承，实际上NSURLSession去判断了，你实现了哪个方法会去调用，包括子代理的方法！
     self.session = [NSURLSession sessionWithConfiguration:self.sessionConfiguration delegate:self delegateQueue:self.operationQueue];
 
-    // 各种响应转码
+    // 各种响应转码 AFJSONResponseSerializer--AFHTTPResponseSerializer<AFURLResponseSerialization>
     self.responseSerializer = [AFJSONResponseSerializer serializer];
     // 设置默认安全策略
     self.securityPolicy = [AFSecurityPolicy defaultPolicy];
@@ -749,33 +755,59 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     self.reachabilityManager = [AFNetworkReachabilityManager sharedManager];
 #endif
     // 设置存储NSURL task与AFURLSessionManagerTaskDelegate的词典（重点，在AFNet中，每一个task都会被匹配一个AFURLSessionManagerTaskDelegate 来做task的delegate事件处理）
-    // 用来让每一个请求task和我们自定义的AF代理来建立映射用的，其实AF对task的代理进行了一个封装，并且转发代理到AF自定义的代理，这是AF比较重要的一部分，接下来我们会具体讲这一块
+    // 用来让每一个请求task和我们自定义的AF代理来建立映射用的，其实AF对task的代理进行了一个封装，并且转发代理到AF自定义的代理，这是AF比较重要的一部分
     self.mutableTaskDelegatesKeyedByTaskIdentifier = [[NSMutableDictionary alloc] init];
 
     //  设置AFURLSessionManagerTaskDelegate 词典的锁，确保词典在多线程访问时的线程安全
+    
+// MARK:<为什么需要使用‘锁’,需要有这个意识,没有意识的时候就多思考为什么代码要这么写,不这么写会出现什么问题>
     self.lock = [[NSLock alloc] init];
     self.lock.name = AFURLSessionManagerLockName;
 
-    
-/**  ???
- 
+// MARK:<关于后台下载的session还需要理解透彻>
+/** ??????????????   关于后台下载的session 还是没理解到位 ??????????????
     这个方法用来异步的获取当前session的所有未完成的task。其实讲道理来说在初始化中调用这个方法应该里面一个task都不会有。我们打断点去看，也确实如此，里面的数组都是空的。
     但是想想也知道，AF大神不会把一段没用的代码放在这吧。辗转多处，终于从AF的issue中找到了结论：https://github.com/AFNetworking/AFNetworking/issues/3499 。
  
-        原来这是为了从后台回来，重新初始化session，防止一些之前的后台请求任务，导致程序的crash。
+    ----来这是为了从后台回来，重新初始化session----，防止一些之前的'后台请求任务'，导致程序的crash。
     ApplicationDelegate 的代理方法里边处理未完成的后台download session
     ‘restoring a session from the background’ 这句话我理解是，有用同一个identifier 创建session的情况，一旦这种情况出现，会返回同一个session ，就需要对task进行获取和处理了
-    
- 关于session的文档
+ 
+   关于session的文档
     https://developer.apple.com/library/content/documentation/Cocoa/Conceptual/URLLoadingSystem/NSURLSessionConcepts/NSURLSessionConcepts.html#//apple_ref/doc/uid/10000165i-CH2-SW42
  */
     
     /**
+  
+     可以结合这两篇内容去理解下
+     https://realm.io/news/gwendolyn-weston-ios-background-networking/
+     
+     http://stackoverflow.com/questions/23492311/nsurlsession-background-task-avoid-duplicates
+     // 这篇介绍了后台下载的
+     https://www.ralfebert.de/ios-examples/networking/urlsession-background-downloads/
+     // 一个基于URLSession的功能完善的下载器
+     https://www.jianshu.com/p/b4edfa0b71d8
+     Qusetions:
+     
+     Is there a way to query NSURLSession to return a list of background tasks? It seems possible to make duplicate requests for background download tasks. I do not get any error if I make the same url download request while a previous one is still in progress.
+     
+     What is the best way to handle this situation? I can maintain a list of urls I am currently downloading from, but in case the app is relaunched I lose this reference. I can again store this information in persistent storage. But it just seems inconvenient not to have an option to query NSURLSession for this.
+     
+     Answer:
+     
+     You could get the list of all download tasks added to the session with the following call.
+     
+     [[self defaultSession] getTasksWithCompletionHandler:^(NSArray *dataTasks, NSArray *uploadTasks, NSArray *downloadTasks) {
+     }];
+     
+     在这里这个防御编程的作用是为了应对session在执行后台下载任务的情况。进入后台后在ApplicationDelegate那个方法中被唤醒，我们会去创建相同identifier的session，这个时候需要通过 getTasksWithCompletionHandler去获取未来得及执行的tasks去做一些防止崩溃的处理。
+     */
+    
+    /**
+     getTasksWithCompletionHandler:
+     获取后台没有完成的Tasks
      Asynchronously calls a completion callback with all data, upload, and download tasks in a session.
      The returned arrays contain any tasks that you have created within the session, not including any tasks that have been invalidated after completing, failing, or being cancelled.
-     
-     
-     可以结合这两篇内容去理解下 https://realm.io/news/gwendolyn-weston-ios-background-networking/ http://stackoverflow.com/questions/23492311/nsurlsession-background-task-avoid-duplicates 在这里这个防御编程的作用是为了应对session在执行后台下载任务的情况。进入后台后在ApplicationDelegate那个方法中被唤醒，我们会去创建相同identifier的session，这个时候需要通过 getTasksWithCompletionHandler去获取未来得及执行的tasks去做一些防止崩溃的处理。
      */
     [self.session getTasksWithCompletionHandler:^(NSArray *dataTasks, NSArray *uploadTasks, NSArray *downloadTasks) {
         for (NSURLSessionDataTask *task in dataTasks) {
@@ -847,9 +879,11 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     // 断言，如果没有这个参数，debug下crash在这
     NSParameterAssert(task);
     NSParameterAssert(delegate);
+    // MARK:<在操作NSDictionary时又出现了‘锁’>
     // 加锁保证字典线程安全
     [self.lock lock];
     // 将AFURLSessionManagerTaskDelegate放入以taskIdentifier标记的词典中（同一个NSURLSession中的taskIdentifier是唯一的）
+    // 代理和task建立映射关系
     self.mutableTaskDelegatesKeyedByTaskIdentifier[@(task.taskIdentifier)] = delegate;
     
     // 此版本有更改 版3.1.0此处还有个操作
@@ -875,11 +909,14 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     AFURLSessionManagerTaskDelegate *delegate = [[AFURLSessionManagerTaskDelegate alloc] initWithTask:dataTask];
     
     // AFURLSessionManagerTaskDelegate与AFURLSessionManager建立相互关系
+    // MARK:<manager属性是weak self不会被释放吗？>
     delegate.manager = self;
     
     delegate.completionHandler = completionHandler;
 
     // 这个taskDescriptionForSessionTasks用来发送开始和挂起通知的时候会用到,就是用这个值来Post通知，来两者对应
+    // MARK:<这个taskDescription有什么作用?>
+
     dataTask.taskDescription = self.taskDescriptionForSessionTasks;
     
     // ***** 将AFURLSessionManagerTaskDelegate对象与 dataTask建立关系
@@ -894,7 +931,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
      1）这个方法，生成了一个AFURLSessionManagerTaskDelegate,这个其实就是AF的自定义代理。我们请求传来的参数，都赋值给这个AF的代理了。
      2）delegate.manager = self;代理把AFURLSessionManager这个类作为属性了,我们可以看到：
      @property (nonatomic, weak) AFURLSessionManager *manager;
-     这个属性是弱引用的，所以不会存在循环引用的问题。
+     这个属性是弱引用的，所以不会存在循环引用的问题。 (manage->delegate delegate-->manager)
      
      3）我们调用了[self setDelegate:delegate forTask:dataTask];
      */
@@ -924,16 +961,16 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     delegate.manager = self;
     delegate.completionHandler = completionHandler;
 
-    // 如果用户设置了destination这个block   看 380 行
+    // 如果用户设置了destination这个block(即用户设置了下载文件存放的路径)   看 380 行
     if (destination) {
         
         //有点绕，就是把一个block赋值给“AF代理”的downloadTaskDidFinishDownloading，这个Block里的内部返回也是调用Block去获取到的，这里面的参数都是“AF代理”传来的。
         delegate.downloadTaskDidFinishDownloading = ^NSURL * (NSURLSession * __unused session, NSURLSessionDownloadTask *task, NSURL *location) {
-            // 调用用户传入的destination这个block
+            // 调用用户传入的destination这个block (将下载文件的临时路径-location和响应信息传给用户-task.response)
             return destination(location, task.response);
         };
     }
-    /**
+    /** 下载文件临时存放在 ‘/tem’ 文件夹下
      (lldb) po location
      file:///private/var/mobile/Containers/Data/Application/CC27F214-F815-45AF-96D4-8EA0C5C1A215/tmp/CFNetworkDownload_iykDD1.tmp
      

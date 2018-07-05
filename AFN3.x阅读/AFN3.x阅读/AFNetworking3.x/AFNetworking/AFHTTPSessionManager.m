@@ -77,15 +77,16 @@
     // Ensure terminal slash for baseURL path, so that NSURL +URLWithString:relativeToURL: works as expected
     // 对传过来的BaseUrl进行处理，如果有值且最后不包含/，url加上"/"
     if ([[url path] length] > 0 && ![[url absoluteString] hasSuffix:@"/"]) {
-        
-        
-//  If the original URL does not end with a forward slash（斜杠-分隔号“/”）） and pathComponent does not begin with a forward slash, a forward slash is inserted between the two parts of the returned URL, unless the original URL is the empty string
-        
+
+        /** URLByAppendingPathComponent方法
+         If the original URL does not end with a forward slash（斜杠-分隔号“/”）） and pathComponent does not begin with a forward slash, a forward slash is inserted between the two parts of the returned URL, unless the original URL is the empty string
+         如果url不带'/'后缀 且 pathComponent不是以'/'开头 该方法就会在两者之间插入'/'
+         */
         url = [url URLByAppendingPathComponent:@""];
     }
 
+    // 设置baseURL requestSerializer responseSerializer
     self.baseURL = url;
-
     self.requestSerializer = [AFHTTPRequestSerializer serializer];
     self.responseSerializer = [AFJSONResponseSerializer serializer];
 
