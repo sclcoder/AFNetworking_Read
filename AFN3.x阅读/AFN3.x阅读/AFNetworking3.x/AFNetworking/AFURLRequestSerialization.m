@@ -206,8 +206,12 @@ NSArray * AFQueryStringPairsFromKeyAndValue(NSString *key, id value) {
 @end
 
 #pragma mark -
-//  c 函数
-//  其实这个函数就是封装了一些属性的名字，这些都是NSUrlRequest的属性。
+//
+//
+/** c 函数---这个函数就是封装了一些属性的名字，这些都是NSUrlRequest的属性。
+ *  static 修饰函数: 起到‘隐藏’作用仅限于在本文件中使用,外部无法引用
+ *  static 修饰函数中的局部不变量: 1.让局部变量只初始化一次 2.对局部变量用static声明，把它分配在静态存储区，该变量在整个程序执行期间不释放，其所分配的空间始终存在  3.并不会改变局部变量的作用域，仅仅是改变了局部变量的生命周期（只到程序结束，这个局部变量才会销毁）
+ */
 static NSArray * AFHTTPRequestSerializerObservedKeyPaths() {
     static NSArray *_AFHTTPRequestSerializerObservedKeyPaths = nil;
     static dispatch_once_t onceToken;
@@ -255,6 +259,7 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
     self.stringEncoding = NSUTF8StringEncoding;
 
     self.mutableHTTPRequestHeaders = [NSMutableDictionary dictionary];
+    // 修改请求头的一个并发队列
     self.requestHeaderModificationQueue = dispatch_queue_create("requestHeaderModificationQueue", DISPATCH_QUEUE_CONCURRENT);
 
     // Accept-Language HTTP Header; see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.4
@@ -292,10 +297,11 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
     // 每次都会重置变化
     // self.mutableObservedChangedKeyPaths其实就是我们自己设置的request属性值的集合。
     self.mutableObservedChangedKeyPaths = [NSMutableSet set];
-    // 给自己这些方法添加观察者为自己，就是request的各种属性，set方法
-    // KVO触发的方法在  605行
+
+    // 给自己这些方法添加观察者为自己,就是request的各种属性，set方法
     for (NSString *keyPath in AFHTTPRequestSerializerObservedKeyPaths()) {
         if ([self respondsToSelector:NSSelectorFromString(keyPath)]) {
+            // 如果实现了这些方法就对这些方法(setter)进行监听,在监听方法中将keypath添加到mutableObservedChangedKeyPaths中
             [self addObserver:self forKeyPath:keyPath options:NSKeyValueObservingOptionNew context:AFHTTPRequestSerializerObserverContext];
         }
     }
@@ -355,7 +361,8 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
 #pragma mark -
 
 - (NSDictionary *)HTTPRequestHeaders {
-    NSDictionary __block *value;
+    NSDictionary __block *value; // __block修饰的变量可以在block内部修改
+    // 并发队列同步任务: 不开线程顺序执行
     dispatch_sync(self.requestHeaderModificationQueue, ^{
         value = [NSDictionary dictionaryWithDictionary:self.mutableHTTPRequestHeaders];
     });
@@ -430,7 +437,7 @@ forHTTPHeaderField:(NSString *)field
         // 如果自己观察到的发生变化的属性在这些方法里
         // mutableObservedChangedKeyPaths 在-init方法对这个集合进行了初始化，并且对当前类的和NSUrlRequest相关的那些属性添加了KVO监听  在294行
         if ([self.mutableObservedChangedKeyPaths containsObject:keyPath]) {
-            // 用KVC的方式，把属性值都设置到我们请求的request中去。
+            // 用KVC的方式，把在AFHTTPRequestSerializer中设置的属性值都设置到我们请求的NSURLRequest中去。
             [mutableRequest setValue:[self valueForKeyPath:keyPath] forKey:keyPath];
         }
     }
@@ -565,10 +572,10 @@ forHTTPHeaderField:(NSString *)field
                                         error:(NSError *__autoreleasing *)error
 {
     NSParameterAssert(request);
-
+    // mutableCopy - 因为要对request进行修改
     NSMutableURLRequest *mutableRequest = [request mutableCopy];
     
-    // 从自己的head里去遍历，如果有值则设置给request的head
+    // 从AFHTTPRequestSerializer的HTTPRequestHeaders里去遍历，如果有值则设置给request的HTTPHeaderField---AFHTTPRequestSerializer设置过程涉及到GCD的知识
     [self.HTTPRequestHeaders enumerateKeysAndObjectsUsingBlock:^(id field, id value, BOOL * __unused stop) {
         if (![request valueForHTTPHeaderField:field]) {
             [mutableRequest setValue:value forHTTPHeaderField:field];
