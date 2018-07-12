@@ -16,7 +16,6 @@
 
 - (void)viewDidLoad {
     [super viewDidLoad];
-
     
     [self testMain_Queue_Async];
     
@@ -42,6 +41,7 @@
  * the main thread before main() is called.
  */
 
+// http://jackhub.github.io/2015/09/17/dispatch/  从源码解释为什么会死锁
 - (void)testMain_Queue_Sync{
     // 死锁
     dispatch_sync(dispatch_get_main_queue(), ^{
@@ -145,7 +145,7 @@
     
     /**
         dispatch_sync函数将任务加入队列后需要等待任务完成后才能返回
-        dispatch_sync会阻塞当前queue而不是阻塞当前线程？？,
+        dispatch_sync会阻塞当前queue而不是阻塞当前线程
         执行1的为什么是在主线程上执行？--（API官方：* As an optimization, dispatch_sync() invokes the block on the current thread when possible.)
      **/
     
