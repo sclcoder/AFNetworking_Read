@@ -1,5 +1,5 @@
 //
-//  ViewController.h
+//  GCDBaseViewController.h
 //  GCD
 //
 //  Created by mac on 2018/7/10.
@@ -8,7 +8,7 @@
 
 #import <UIKit/UIKit.h>
 
-@interface ViewController : UIViewController
+@interface GCDBaseViewController : UIViewController
 
 
 @end

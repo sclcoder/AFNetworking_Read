@@ -1,18 +1,18 @@
 //
-//  ViewController.m
+//  GCDBaseViewController.m
 //  GCD
 //
 //  Created by mac on 2018/7/10.
 //  Copyright © 2018年 mac. All rights reserved.
 //
 
-#import "ViewController.h"
+#import "GCDBaseViewController.h"
 
-@interface ViewController ()
+@interface GCDBaseViewController ()
 
 @end
 
-@implementation ViewController
+@implementation GCDBaseViewController
 
 - (void)viewDidLoad {
     [super viewDidLoad];
