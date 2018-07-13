@@ -17,7 +17,12 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    [self testMain_Queue_Async];
+     dispatch_queue_t current_queue = dispatch_get_current_queue();
+    
+    dispatch_queue_t main_queue = dispatch_get_main_queue();
+
+    NSLog(@"%@--%@",current_queue,main_queue);
+//    [self testMain_Queue_Async];
     
 }
 
