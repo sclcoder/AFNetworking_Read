@@ -10,6 +10,18 @@
 
 @interface GCDBaseViewController ()
 
+// nonatomic非原子 strong
+@property (nonatomic, copy) NSString *target;
+
+// 原子的
+@property (atomic, assign) int intA;
+
+// 原子的
+@property (atomic, strong) NSArray* arr;
+
+@property(nonatomic,weak) NSString *weakstring;
+
+
 @end
 
 @implementation GCDBaseViewController
@@ -17,9 +29,226 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-    [self testMain_Queue_Async];
+
+//    [self testMain_Queue_Async];
+    
+    // 线程安全的问题
+    // https://www.jianshu.com/p/cec2a41aa0e7  -- 看评论很多知识点
+    // https://www.jianshu.com/p/fd81fec31fe7
+    
+//        [self threadSafe];
+
+    // 线程安全的理解
+//    [self threadSafe00];
+    
+    
+    [self autoreleasepool00];
+}
+
+
+// <MARK:autorelease对象>
+
+// http://blog.devtang.com/2014/03/21/weak_object_lifecycle_and_tagged_pointer/index.html
+
+// 按照苹果的编程约定，由非alloc,copy返回的对象都是autorelease的，所以对于以下代码，虽然变量string是__weak的，但是由于[NSString stringWithFormat:@"asdasdfasdfasdasdfa"]返回的对象是autorelase的，所以仍然能通过NSLog打印出来。
+
+// 这个字符串长度足够 保存时没有使用到Tagge Point而是传统的指针
+
+/***
+ 从汇编代码中看，以上代码在创建string变量时，是通过objc_loadWeak方法进行的。而根据 Clang的官方文档，objc_loadWeak方法会retain并autorelease这个对象。所以给一个weak对象赋值，它并不会马上释放，而是会放到autorelease pool中，与autorelease pool一起释放。
+ 
+ 如下是objc_loadWeak的代码示例：
+ 
+ id objc_loadWeak(id *object) {
+ return objc_autorelease(objc_loadWeakRetained(object));
+ }
+ 
+ */
+- (void)autoreleasepool00{
+    
+    // __weak 属性 通过objc_loadWeak创建string。objc_loadWeak会retain这个对象并且autorelease该对象。所以给一个weak对象赋值，它并不会马上释放，而是会放到autorelease pool中，与autorelease pool一起释放。
+    
+    __weak NSString *string = [NSString stringWithFormat:@"asdasdfasdfasdasdfa"];
+    // asdasdfasdfasdasdfa
+    NSLog(@"%@",string);
+    
+    self.weakstring = [NSString stringWithFormat:@"asdasdfasdfasdasdfa"];
+    // asdasdfasdfasdasdfa
+    NSLog(@"%@",self.weakstring);
+
+
+}
+
+- (void)autoreleasepool01{
+    
+    __weak NSString *string = nil;
+    
+    @autoreleasepool{
+        string = [NSString stringWithFormat:@"asdasdfasdfasdasdfa"];
+    }
+    // 输出null
+    NSLog(@"%@",string);
+    
+    
+    @autoreleasepool{
+        self.weakstring = [NSString stringWithFormat:@"asdasdfasdfasdasdfa"];
+    }
+    // 输出null
+    NSLog(@"%@",self.weakstring);
+}
+
+- (void)threadSafe{
+    
+    NSLog(@"threadSafe");
+    
+    // 这个问题值得深入研究--研究调用的堆栈
+    /** libobjc.A.dylib`objc_release:
+     0x103787cc0 <+0>:  testq  %rdi, %rdi
+     0x103787cc3 <+3>:  je     0x103787cc7               ; <+7>
+     0x103787cc5 <+5>:  jns    0x103787cc8               ; <+8>
+     0x103787cc7 <+7>:  retq
+     0x103787cc8 <+8>:  movq   (%rdi), %rax
+     ->  0x103787ccb <+11>: testb  $0x2, 0x20(%rax)      // Thread 5: EXC_BAD_ACCESS (code=EXC_I386_GPFLT)
+     0x103787ccf <+15>: je     0x103787cdb               ; <+27>
+     0x103787cd1 <+17>: movl   $0x1, %esi
+     0x103787cd6 <+22>: jmp    0x103788964               ; objc_object::sidetable_release(bool)
+     0x103787cdb <+27>: leaq   0x81f5c6(%rip), %rax      ; SEL_release
+     0x103787ce2 <+34>: movq   (%rax), %rsi
+     0x103787ce5 <+37>: jmp    0x10378a940               ; objc_msgSend
+     */
+    // 出现了‘坏内存’访问-EXC_BAD_ACCESS
+    dispatch_queue_t queue = dispatch_queue_create("parallel", DISPATCH_QUEUE_CONCURRENT);
+    for (int i = 0; i < 100000 ; i++) {
+        dispatch_async(queue, ^{
+            _target = [NSString stringWithFormat:@"123456789"];
+        });
+    }
+    
+    /** 注意此处的的target属性声明的为nonatomic非原子属性不会加锁 strong
+
+     strong属性的生成方法是：
+     - (void)setTarget:(NSString *)target {
+         if(_target != target) {
+         [target retain];
+         [_target release];
+         _target = target;
+        }
+     }
+     在多线程中可能：线程1通过getter获取当前的_target. 之后线程2通过setter调用[_target release],此时线程1获取的_target变为无效地址空间,这时再给这个地址空间发消息导致crash
+     
+     如果target属性声明的为atomic就不会导致crash 因为atomic默认会在setter、getter中加锁 保证setter、getter是原子性的操作
+     */
     
 }
+
+
+- (void)threadSafe0{
+    
+    dispatch_queue_t gq = dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0);
+    
+    dispatch_async(gq, ^{
+        //thread A
+        for (int i = 0; i < 1000; i ++) {
+            self.intA = self.intA + 1;
+            NSLog(@"Thread A: %d----%@\n", self.intA ,[NSThread currentThread]);
+        }
+    });
+    
+    dispatch_async(gq, ^{
+        //thread B
+        for (int i = 0; i < 1000; i ++) {
+            self.intA = self.intA + 1;
+            NSLog(@"Thread B: %d----%@\n", self.intA ,[NSThread currentThread]);
+        }
+    });
+    
+    // https://www.jianshu.com/p/fd81fec31fe7
+    /** 即使将intA声明为atomic,最终结果也不一定是2000。 因为self.intA = self.intA + 1;不是原子操作，虽然intA的getter和setter是原子操作，但当我们使用intA的时候，整个语句并不是原子的，这行赋值的代码至少包含读取(load)，+1(add)，赋值(store)三步操作，当前线程store的时候可能其他线程已经执行了若干次store了，导致最后的值小于预期值。这种场景我们也可以称之为多线程不安全。
+     
+     
+     日志中出现两次3的原因: 因为self.intA = self.intA + 1不是原子操作。线程A在执行这个操作时先读取intA的值为2(getter是原子操作),由于整条语句不是原子操作,在执行self.intA+1的时,线程B也有可能执行命令,这时线程B读取intA的值也为2。结果就会出现最终的读取结果都为3。
+     2018-07-27 10:51:15.332518+0800 GCD[23019:1332199] Thread A: 1----<NSThread: 0x60400026e200>{number = 4, name = (null)}
+     2018-07-27 10:51:15.332521+0800 GCD[23019:1332202] Thread B: 2----<NSThread: 0x60c00007d140>{number = 5, name = (null)}
+     2018-07-27 10:51:15.332778+0800 GCD[23019:1332199] Thread A: 3----<NSThread: 0x60400026e200>{number = 4, name = (null)}
+     2018-07-27 10:51:15.332779+0800 GCD[23019:1332202] Thread B: 3----<NSThread: 0x60c00007d140>{number = 5, name = (null)}
+     2018-07-27 10:51:15.332910+0800 GCD[23019:1332199] Thread A: 4----<NSThread: 0x60400026e200>{number = 4, name = (null)}
+     **/
+    
+    // 虽然intA的属性为atomic 但最终的输出结果不一定是2000
+    
+    //
+    
+}
+
+- (void)threadSafe00{
+    
+    dispatch_queue_t gq = dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0);
+
+    dispatch_async(gq, ^{
+        
+        //thread A
+        for (int i = 0; i < 100000; i ++) {
+            if (i % 2 == 0) {
+                self.arr = @[@"1", @"2", @"3"];
+            }else {
+                self.arr = @[@"1"];
+            }
+            NSLog(@"Thread A: %@\n", self.arr);
+        }
+        
+    });
+
+    dispatch_async(gq, ^{
+        
+        //thread B
+        for (int i = 0; i < 100000; i ++){
+            
+            if (self.arr.count >= 2) { // 此处获取的数据可能是@[@"1", @"2", @"3"]
+/**
+                crash
+                libsystem_kernel.dylib`__pthread_kill:
+                -libc++abi.dylib: terminating with uncaught exception of type NSException
+ */
+                NSString* str = [self.arr objectAtIndex:1]; // 此时获取的数据可能被改为了@[@"1"] 导致crash
+            }
+            
+            NSLog(@"Thread B: %@\n", self.arr);
+        }
+
+    });
+
+}
+
+
+- (void)threadSafe1{
+    
+    NSLog(@"threadSafe1");
+
+    // 改用串行队列-不会crash 但是效率低、内存增加
+    dispatch_queue_t queue = dispatch_queue_create("serial", DISPATCH_QUEUE_SERIAL);
+    for (int i = 0; i < 100000 ; i++) {
+        dispatch_async(queue, ^{
+            self.target = [NSString stringWithFormat:@"我会造成内存暴增"];
+        });
+    }
+}
+
+- (void)threadSafe2{
+    // 没什么问题--AFN中就是这么做的
+    NSLog(@"threadSafe2");
+    // 改用同步任务
+    dispatch_queue_t queue = dispatch_queue_create("parallel", DISPATCH_QUEUE_CONCURRENT);
+    for (int i = 0; i < 100000 ; i++) {
+        dispatch_sync(queue, ^{
+            self.target = [NSString stringWithFormat:@"我会造成内存暴增"];
+        });
+    }
+}
+
+
+
+
+
 
 
 // MARK:<主队列:特殊的串行队列>

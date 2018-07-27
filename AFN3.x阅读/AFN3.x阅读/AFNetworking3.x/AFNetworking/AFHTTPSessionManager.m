@@ -347,7 +347,7 @@
                                          success:(void (^)(NSURLSessionDataTask *, id))success
                                          failure:(void (^)(NSURLSessionDataTask *, NSError *))failure
 {
-    //把参数，还有各种东西转化为一个request
+    // 请求序列化器：生产一个NSURLRequest需要的参数--请求方法、请求地址、请求参数
     NSError *serializationError = nil;
     NSMutableURLRequest *request = [self.requestSerializer
                                     requestWithMethod:method

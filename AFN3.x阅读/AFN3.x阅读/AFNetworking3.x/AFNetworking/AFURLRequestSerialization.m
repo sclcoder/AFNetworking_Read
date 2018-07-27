@@ -214,6 +214,15 @@ NSArray * AFQueryStringPairsFromKeyAndValue(NSString *key, id value) {
  */
 static NSArray * AFHTTPRequestSerializerObservedKeyPaths() {
     static NSArray *_AFHTTPRequestSerializerObservedKeyPaths = nil;
+    
+    /*!
+     * @typedef dispatch_once_t
+     *
+     * @abstract
+     * A predicate for use with dispatch_once(). It must be initialized to zero.
+     * Note: static and global variables default to zero.
+     */
+    // 静态变量默认初始值为0
     static dispatch_once_t onceToken;
     
     /** 
