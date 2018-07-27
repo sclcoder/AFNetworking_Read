@@ -96,8 +96,9 @@
     NSLog(@"%@",self.weakstring);
 }
 
+// <MARK:一个面试题引发的血案之--线程安全>
 - (void)threadSafe{
-    
+//    https://www.jianshu.com/p/cec2a41aa0e7
     NSLog(@"threadSafe");
     // 注意这个字符串长度一定要足够长不然在64位系统中会有Tagged Point(可以理解为假指针)的问题导致测试结果不一样
     // 出现了‘坏内存’访问-EXC_BAD_ACCESS
