@@ -29,9 +29,6 @@
 - (void)viewDidLoad {
     [super viewDidLoad];
     
-
-//    [self testMain_Queue_Async];
-    
     // 线程安全的问题
     // https://www.jianshu.com/p/cec2a41aa0e7  -- 看评论很多知识点
     // https://www.jianshu.com/p/fd81fec31fe7
@@ -41,6 +38,7 @@
     // 线程安全的理解
 //    [self threadSafe00];
     
+//    [self testMain_Queue_Async];
     
     [self autoreleasepool00];
 }

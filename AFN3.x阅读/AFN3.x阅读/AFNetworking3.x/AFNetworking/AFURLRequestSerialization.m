@@ -371,7 +371,7 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
 
 - (NSDictionary *)HTTPRequestHeaders {
     NSDictionary __block *value; // __block修饰的变量可以在block内部修改
-    // 并发队列同步任务: 不开线程顺序执行
+    // 修改HTTPRequestHeaders字典：使用同步并发队列实现线程安全功能?
     dispatch_sync(self.requestHeaderModificationQueue, ^{
         value = [NSDictionary dictionaryWithDictionary:self.mutableHTTPRequestHeaders];
     });
@@ -381,6 +381,15 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
 - (void)setValue:(NSString *)value
 forHTTPHeaderField:(NSString *)field
 {
+    /* 实现高效的读写方案
+       只有在自定义的并发队列中其作用-- 直到先Barrier blocks进入对列的任务完成后，该任务才执行;后于Barrier blocks进入队列的任务直到Barrier blocks任务完成才能执行。
+    * It enables the implementation of efficient reader/writer schemes.
+    * Barrier blocks only behave specially when submitted to queues created with
+    * the DISPATCH_QUEUE_CONCURRENT attribute; on such a queue, a barrier block
+    * will not run until all blocks submitted to the queue earlier have completed,
+    * and any blocks submitted to the queue after a barrier block will not run
+    * until the barrier block has completed.
+    */
     dispatch_barrier_async(self.requestHeaderModificationQueue, ^{
         [self.mutableHTTPRequestHeaders setValue:value forKey:field];
     });

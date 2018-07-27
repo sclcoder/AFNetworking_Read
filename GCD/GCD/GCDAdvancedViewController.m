@@ -24,18 +24,47 @@
 
 - (IBAction)redo:(id)sender {
 
-//    [self apply];
+//    [self applytest];
     
-//    [self iterationsManunal];
-    
-//    [self nastedApplySC];
+    [self semaphore];
 
-//    [self nastedApplyCC];
+}
+
+// MARK:<dispatch_semaphore_t---信号量相关>
+
+- (void)semaphore{
     
-//    [self nastedApplySS];
+    dispatch_group_t group = dispatch_group_create();
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(10);
+    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
+    
+    
+    for (int i = 0; i < 100; i++){
+        dispatch_semaphore_wait(semaphore, DISPATCH_TIME_FOREVER);
+        dispatch_group_async(group, queue, ^{
+          NSLog(@"%i--%@",i,[NSThread currentThread]);
+          sleep(2);
+          dispatch_semaphore_signal(semaphore);
+        });
+    }
+      dispatch_group_wait(group, DISPATCH_TIME_FOREVER);
+}
+
+// MARK:<dispatch_apply---apply相关>
+
+- (void)applytest{
+    
+    //    [self apply];
+    
+    //    [self iterationsManunal];
+    
+    //    [self nastedApplySC];
+    
+    //    [self nastedApplyCC];
+    
+    //    [self nastedApplySS];
     
     [self nastedApplyCS];
-    
 }
 
  /*!
