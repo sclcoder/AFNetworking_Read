@@ -11,7 +11,7 @@
 @interface GCDBaseViewController ()
 
 // nonatomic非原子 strong
-@property (nonatomic, copy) NSString *target;
+@property (nonatomic, strong) NSString *target;
 
 // 原子的
 @property (atomic, assign) int intA;
@@ -33,14 +33,15 @@
     // https://www.jianshu.com/p/cec2a41aa0e7  -- 看评论很多知识点
     // https://www.jianshu.com/p/fd81fec31fe7
     
-//        [self threadSafe];
+    
+    [self threadSafe];
 
     // 线程安全的理解
 //    [self threadSafe00];
     
 //    [self testMain_Queue_Async];
     
-    [self autoreleasepool00];
+//    [self autoreleasepool00];
 }
 
 
@@ -98,33 +99,24 @@
 - (void)threadSafe{
     
     NSLog(@"threadSafe");
-    
-    // 这个问题值得深入研究--研究调用的堆栈
-    /** libobjc.A.dylib`objc_release:
-     0x103787cc0 <+0>:  testq  %rdi, %rdi
-     0x103787cc3 <+3>:  je     0x103787cc7               ; <+7>
-     0x103787cc5 <+5>:  jns    0x103787cc8               ; <+8>
-     0x103787cc7 <+7>:  retq
-     0x103787cc8 <+8>:  movq   (%rdi), %rax
-     ->  0x103787ccb <+11>: testb  $0x2, 0x20(%rax)      // Thread 5: EXC_BAD_ACCESS (code=EXC_I386_GPFLT)
-     0x103787ccf <+15>: je     0x103787cdb               ; <+27>
-     0x103787cd1 <+17>: movl   $0x1, %esi
-     0x103787cd6 <+22>: jmp    0x103788964               ; objc_object::sidetable_release(bool)
-     0x103787cdb <+27>: leaq   0x81f5c6(%rip), %rax      ; SEL_release
-     0x103787ce2 <+34>: movq   (%rax), %rsi
-     0x103787ce5 <+37>: jmp    0x10378a940               ; objc_msgSend
-     */
+    // 注意这个字符串长度一定要足够长不然在64位系统中会有Tagged Point(可以理解为假指针)的问题导致测试结果不一样
     // 出现了‘坏内存’访问-EXC_BAD_ACCESS
     dispatch_queue_t queue = dispatch_queue_create("parallel", DISPATCH_QUEUE_CONCURRENT);
     for (int i = 0; i < 100000 ; i++) {
         dispatch_async(queue, ^{
-            _target = [NSString stringWithFormat:@"123456789"];
+            
+            // 1.nonatomic strong : crash  2.atomic strong :不crash 原因:atomic给setter方法加了锁，仅仅给seteer方法加锁
+             self.target = [NSString stringWithFormat:@"123456789%d",i];
+            
+            // 1.nonatomic strong : crash  2.atomic strong :crash
+            // 此处并没有setter方法atomic无法加锁,导致原因在 strong属性中
+            _target = [NSString stringWithFormat:@"123456789%d",i];
+
         });
     }
     
-    /** 注意此处的的target属性声明的为nonatomic非原子属性不会加锁 strong
-
-     strong属性的生成方法是：
+    /**
+     在MRC中setter方法会是这样的---MRC中没有strong属性只有retain -- nonatomic不会加锁
      - (void)setTarget:(NSString *)target {
          if(_target != target) {
          [target retain];
@@ -132,6 +124,26 @@
          _target = target;
         }
      }
+     
+     在ARC中就要分析strong属性了----原理和在MRC中一样：strong属性在存储值时有retain、release操作
+     
+     //NSObject.mm
+     void objc_storeStrong(id *location, id obj) {
+     //如果新值指针和旧值一样，则不更新，直接return
+     id prev = *location;
+     
+     if (obj == prev) {
+        return;
+     }
+     //先对新值
+     retain objc_retain(obj);
+     //再赋值
+     *location = obj;
+     //最后对旧值
+     release objc_release(prev);
+     
+     }
+     
      在多线程中可能：线程1通过getter获取当前的_target. 之后线程2通过setter调用[_target release],此时线程1获取的_target变为无效地址空间,这时再给这个地址空间发消息导致crash
      
      如果target属性声明的为atomic就不会导致crash 因为atomic默认会在setter、getter中加锁 保证setter、getter是原子性的操作
