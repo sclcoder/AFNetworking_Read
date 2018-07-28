@@ -370,8 +370,8 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
 #pragma mark -
 
 - (NSDictionary *)HTTPRequestHeaders {
-    NSDictionary __block *value; // __block修饰的变量可以在block内部修改
-    // 修改HTTPRequestHeaders字典：使用同步并发队列实现线程安全功能?
+    NSDictionary __block *value; // __block修饰的变量可以在block内部修改 还有个默认属性是__strong
+    // 在多线程中修改指针指向是不安全的 __strong的底层处理是有retain\release操作。多线程可能会造成多次release导致crash
     dispatch_sync(self.requestHeaderModificationQueue, ^{
         value = [NSDictionary dictionaryWithDictionary:self.mutableHTTPRequestHeaders];
     });
@@ -390,6 +390,9 @@ forHTTPHeaderField:(NSString *)field
     * and any blocks submitted to the queue after a barrier block will not run
     * until the barrier block has completed.
     */
+    
+    // 在多线程中修改NSMutableDictionary会crash的 NSMutableDictionary本身设计上就不是线程安全的
+    // 此处使用dispatch_barrier_async保证修改NSMutableDictionary是安全的
     dispatch_barrier_async(self.requestHeaderModificationQueue, ^{
         [self.mutableHTTPRequestHeaders setValue:value forKey:field];
     });
