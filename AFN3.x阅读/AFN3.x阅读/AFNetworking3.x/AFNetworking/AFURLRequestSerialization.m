@@ -268,7 +268,7 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
     self.stringEncoding = NSUTF8StringEncoding;
 
     self.mutableHTTPRequestHeaders = [NSMutableDictionary dictionary];
-    // 修改请求头的一个并发队列
+    // 修改请求头的一个并发队列--因为dispatch_async_barrier只有在自定义的并发队列中才起作用
     self.requestHeaderModificationQueue = dispatch_queue_create("requestHeaderModificationQueue", DISPATCH_QUEUE_CONCURRENT);
 
     // Accept-Language HTTP Header; see http://www.w3.org/Protocols/rfc2616/rfc2616-sec14.html#sec14.4
@@ -307,10 +307,14 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
     // self.mutableObservedChangedKeyPaths其实就是我们自己设置的request属性值的集合。
     self.mutableObservedChangedKeyPaths = [NSMutableSet set];
 
-    // 给自己这些方法添加观察者为自己,就是request的各种属性，set方法
+    // 给‘自己’这些方法添加观察者为自己,就是request的各种属性，set方法
+    /**
+        为什么要先判断respondsToSelector:呢? 这AFN中的一个issue
+        https://github.com/AFNetworking/AFNetworking/pull/2294
+     */
     for (NSString *keyPath in AFHTTPRequestSerializerObservedKeyPaths()) {
         if ([self respondsToSelector:NSSelectorFromString(keyPath)]) {
-            // 如果实现了这些方法就对这些方法(setter)进行监听,在监听方法中将keypath添加到mutableObservedChangedKeyPaths中
+            // 自己实现了所有的keyPath方法--在对象创建的时候keyPath方法就存在了
             [self addObserver:self forKeyPath:keyPath options:NSKeyValueObservingOptionNew context:AFHTTPRequestSerializerObserverContext];
         }
     }
@@ -331,6 +335,11 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
 // Workarounds for crashing behavior using Key-Value Observing with XCTest
 // See https://github.com/AFNetworking/AFNetworking/issues/2523
 
+/** 此处手动启动KVO通知的原因是- AFN实现automaticallyNotifiesObserversForKey方法时禁止了这几个keyPath的自动KVO通知。    https://github.com/AFNetworking/AFNetworking/commit/7d8e2867e026c303c12b82896b734fb39ed60d9e
+ 
+    为什么要禁止这几个keyPath的自动通知是因为
+    https://github.com/AFNetworking/AFNetworking/issues/2523
+ */
 - (void)setAllowsCellularAccess:(BOOL)allowsCellularAccess {
     [self willChangeValueForKey:NSStringFromSelector(@selector(allowsCellularAccess))];
     _allowsCellularAccess = allowsCellularAccess;
@@ -369,13 +378,26 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
 
 #pragma mark -
 
+// 在3.2.0版本中加入了多线程的控制---在多线程中操作NSMutableDictionary不安全
+// https://github.com/AFNetworking/AFNetworking/commit/2ffdc3db85966b99dd67afad106cc10ff4165f69#diff-a75d452377f3996bdc4b623a5df25820
+
 - (NSDictionary *)HTTPRequestHeaders {
-    NSDictionary __block *value; // __block修饰的变量可以在block内部修改
-    // 修改HTTPRequestHeaders字典：使用同步并发队列实现线程安全功能?
+    NSDictionary __block *value;
     dispatch_sync(self.requestHeaderModificationQueue, ^{
         value = [NSDictionary dictionaryWithDictionary:self.mutableHTTPRequestHeaders];
     });
     return value;
+    
+    /**
+      这里创建NSDictionary 为什么使用+dictionaryWithDictionary: 而不是用 -copy方法呢？
+      https://stackoverflow.com/questions/17076974/nsdictionary-dictionarywithdictionary-or-copy
+
+        [otherDictionary copy]; // or -mutableCopy
+        You'll get back nil, because you have a nil receiver.
+     
+        [NS(Mutable)Dictionary dictionaryWithDictionary:otherDictionary];
+         You will get back an NS(Mutable)Dictionary, regardless of whether otherDictionary is nil or not.
+     */
 }
 
 - (void)setValue:(NSString *)value
@@ -383,13 +405,7 @@ forHTTPHeaderField:(NSString *)field
 {
     /* 实现高效的读写方案
        只有在自定义的并发队列中其作用-- 直到先Barrier blocks进入对列的任务完成后，该任务才执行;后于Barrier blocks进入队列的任务直到Barrier blocks任务完成才能执行。
-    * It enables the implementation of efficient reader/writer schemes.
-    * Barrier blocks only behave specially when submitted to queues created with
-    * the DISPATCH_QUEUE_CONCURRENT attribute; on such a queue, a barrier block
-    * will not run until all blocks submitted to the queue earlier have completed,
-    * and any blocks submitted to the queue after a barrier block will not run
-    * until the barrier block has completed.
-    */
+     */
     dispatch_barrier_async(self.requestHeaderModificationQueue, ^{
         [self.mutableHTTPRequestHeaders setValue:value forKey:field];
     });
@@ -671,7 +687,7 @@ forHTTPHeaderField:(NSString *)field
 }
 
 #pragma mark - NSKeyValueObserving
-
+// https://github.com/AFNetworking/AFNetworking/commit/7d8e2867e026c303c12b82896b734fb39ed60d9e
 + (BOOL)automaticallyNotifiesObserversForKey:(NSString *)key {
     if ([AFHTTPRequestSerializerObservedKeyPaths() containsObject:key]) {
         return NO;
