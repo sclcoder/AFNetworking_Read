@@ -20,7 +20,6 @@
 //    [self testBaseUrl];
     [self test];
     
-    NSLock
 }
 
 

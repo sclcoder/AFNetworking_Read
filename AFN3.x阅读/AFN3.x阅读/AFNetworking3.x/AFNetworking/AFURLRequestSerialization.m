@@ -470,7 +470,7 @@ forHTTPHeaderField:(NSString *)field
 //    AFHTTPRequestSerializerObservedKeyPaths() 就是封装了一些属性的名字，这些都是NSUrlRequest的属性
     for (NSString *keyPath in AFHTTPRequestSerializerObservedKeyPaths()) {
         // 如果自己观察到的发生变化的属性在这些方法里
-        // mutableObservedChangedKeyPaths 在-init方法对这个集合进行了初始化，并且对当前类的和NSUrlRequest相关的那些属性添加了KVO监听  在294行
+        // mutableObservedChangedKeyPaths 在-init方法对这个集合进行了初始化，并且对当前类的和NSUrlRequest相关的那些属性添加了KVO监听
         if ([self.mutableObservedChangedKeyPaths containsObject:keyPath]) {
             // 用KVC的方式，把在AFHTTPRequestSerializer中设置的属性值都设置到我们请求的NSURLRequest中去。
             [mutableRequest setValue:[self valueForKeyPath:keyPath] forKey:keyPath];
@@ -631,7 +631,7 @@ forHTTPHeaderField:(NSString *)field
     // mutableCopy - 因为要对request进行修改
     NSMutableURLRequest *mutableRequest = [request mutableCopy];
     
-    // 从AFHTTPRequestSerializer的HTTPRequestHeaders里去遍历，如果有值则设置给request的HTTPHeaderField---AFHTTPRequestSerializer设置过程涉及到GCD的知识
+    // 从AFHTTPRequestSerializer的HTTPRequestHeaders里去遍历，如果有值则设置给request的HTTPHeaderField
     [self.HTTPRequestHeaders enumerateKeysAndObjectsUsingBlock:^(id field, id value, BOOL * __unused stop) {
         if (![request valueForHTTPHeaderField:field]) {
             [mutableRequest setValue:value forHTTPHeaderField:field];
@@ -663,9 +663,15 @@ forHTTPHeaderField:(NSString *)field
             }
         }
     }
-  //最后判断该request中是否包含了GET、HEAD、DELETE（都包含在HTTPMethodsEncodingParametersInURI）。因为这几个method的quey是拼接到url后面的。而POST、PUT是把query拼接到http body中的。
+  // 最后判断该request中是否包含了GET、HEAD、DELETE（都包含在HTTPMethodsEncodingParametersInURI）。因为这几个method的quey是拼接到url后面的。而POST、PUT是把query拼接到http body中的。
     if ([self.HTTPMethodsEncodingParametersInURI containsObject:[[request HTTPMethod] uppercaseString]]) {
         if (query && query.length > 0) {
+            
+    /**
+     The query string, conforming to RFC 1808.
+     This property contains the query string. Any percent-encoded characters are not unescaped. If the receiver does not conform to RFC 1808, this property contains nil. For example, in the URL http://www.example.com/index.php?key1=value1&key2=value2, the query string is key1=value1&key2=value2.
+     */
+            // 原来的URL中有query和没有query的拼接处理
             mutableRequest.URL = [NSURL URLWithString:[[mutableRequest.URL absoluteString] stringByAppendingFormat:mutableRequest.URL.query ? @"&%@" : @"?%@", query]];
         }
     } else {
@@ -737,7 +743,8 @@ forHTTPHeaderField:(NSString *)field
 }
 
 #pragma mark - NSCopying
-
+// MARK:<需要研究一下copyWithZone>
+// 实现NSCopying协议--可以实现copy？？？
 - (instancetype)copyWithZone:(NSZone *)zone {
     AFHTTPRequestSerializer *serializer = [[[self class] allocWithZone:zone] init];
     dispatch_sync(self.requestHeaderModificationQueue, ^{
