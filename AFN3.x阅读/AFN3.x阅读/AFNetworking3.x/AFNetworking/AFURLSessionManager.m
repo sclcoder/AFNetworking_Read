@@ -21,7 +21,7 @@
 
 #import "AFURLSessionManager.h"
 #import <objc/runtime.h>
-
+/// 如果没有 NSFoundationVersionNumber_iOS_8_0 自己定义一个值 1140.11 否则使用系统定义的值
 #ifndef NSFoundationVersionNumber_iOS_8_0
 #define NSFoundationVersionNumber_With_Fixed_5871104061079552_bug 1140.11
 #else
@@ -41,27 +41,18 @@ static dispatch_queue_t url_session_manager_creation_queue() {
 static void url_session_manager_create_task_safely(dispatch_block_t block) {
     
     if (NSFoundationVersionNumber < NSFoundationVersionNumber_With_Fixed_5871104061079552_bug) {
+        
         // Fix of bug
         // Open Radar:http://openradar.appspot.com/radar?id=5871104061079552 (status: Fixed in iOS8)
         // Issue about:https://github.com/AFNetworking/AFNetworking/issues/2093
-        
-        // 为什么用sync ？
-        // 因为是想要主线程等在这，等执行完，在返回，因为必须执行完 dataTask才有数据，传值才有意义。
-        
-        // 为什么要用串行队列？
-        // 因为这块是为了防止ios8以下内部的dataTaskWithRequest是并发创建的， //这样会导致taskIdentifiers这个属性值不唯一，因为后续要用taskIdentifiers来作为Key对应delegate。
-        
-        // 同步任务串行队列 不开线程顺序执行
-        
-        dispatch_sync(url_session_manager_creation_queue(), block);
-        
         /**
-         方法非常简单，关键是理解这么做的目的：为什么我们不直接去调用
+         方法非常简单，关键是理解这么做的目的:为什么我们不直接去调用?
          dataTask = [self.session dataTaskWithRequest:request];
-         非要绕这么一圈，我们点进去bug日志里看看，原来这是为了适配iOS8的以下，创建session的时候，偶发的情况会出现session的属性taskIdentifier这个值不唯一，而这个taskIdentifier是我们后面来映射delegate的key,所以它必须是唯一的。
-         具体原因应该是NSURLSession内部去生成task的时候是用多线程并发去执行的。想通了这一点，我们就很好解决了，我们只需要在iOS8以下同步串行的去生成task就可以防止这一问题发生（如果还是不理解同步串行的原因，可以看看注释）
+         非要绕这么一圈，我们点进去bug日志里看看，原来这是为了适配iOS8的以下，创建session的时候，并发的情况会出现session的属性taskIdentifier这个值不唯一，而这个taskIdentifier是我们后面来映射delegate的key,所以它必须是唯一的。
+         具体原因应该是NSURLSession内部去生成task的时候是用多线程并发去执行的。想通了这一点，我们就很好解决了，我们只需要在iOS8以下同步串行的去生成task就可以防止这一问题发生
          */
         
+        dispatch_sync(url_session_manager_creation_queue(), block);
         
     } else {
         // ios8以上 直接执行block
@@ -739,17 +730,24 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     self.operationQueue.maxConcurrentOperationCount = 1;
 
     
-    /**
+    /** 方法要求该队列为串行队里
+     An operation queue for scheduling the delegate calls and completion handlers. The queue should be a serial queue, in order to ensure the correct ordering of callbacks. If nil, the session creates a serial operation queue for performing all delegate method calls and completion handler calls.
+     
      + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration delegate:(nullable id <NSURLSessionDelegate>)delegate delegateQueue:(nullable NSOperationQueue *)queue;
         此处的协议是 NSURLSessionDelegate
      */
     // 注意代理，代理的继承，实际上NSURLSession去判断了，你实现了哪个方法会去调用，包括子代理的方法！
     self.session = [NSURLSession sessionWithConfiguration:self.sessionConfiguration delegate:self delegateQueue:self.operationQueue];
+    
+    
+    
 
     // 各种响应转码 AFJSONResponseSerializer--AFHTTPResponseSerializer<AFURLResponseSerialization>
     self.responseSerializer = [AFJSONResponseSerializer serializer];
     // 设置默认安全策略
     self.securityPolicy = [AFSecurityPolicy defaultPolicy];
+    
+    
 
 #if !TARGET_OS_WATCH
     self.reachabilityManager = [AFNetworkReachabilityManager sharedManager];
@@ -758,12 +756,13 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     // 用来让每一个请求task和我们自定义的AF代理来建立映射用的，其实AF对task的代理进行了一个封装，并且转发代理到AF自定义的代理，这是AF比较重要的一部分
     self.mutableTaskDelegatesKeyedByTaskIdentifier = [[NSMutableDictionary alloc] init];
 
-    //  设置AFURLSessionManagerTaskDelegate 词典的锁，确保词典在多线程访问时的线程安全
     
-// MARK:<为什么需要使用‘锁’,需要有这个意识,没有意识的时候就多思考为什么代码要这么写,不这么写会出现什么问题>
+    //  设置AFURLSessionManagerTaskDelegate 词典的锁，确保词典在多线程访问时的线程安全
     self.lock = [[NSLock alloc] init];
     self.lock.name = AFURLSessionManagerLockName;
 
+    
+    
 // MARK:<关于后台下载的session还需要理解透彻>
 /** ??????????????   关于后台下载的session 还是没理解到位 ??????????????
     这个方法用来异步的获取当前session的所有未完成的task。其实讲道理来说在初始化中调用这个方法应该里面一个task都不会有。我们打断点去看，也确实如此，里面的数组都是空的。
@@ -831,18 +830,19 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 }
 
 #pragma mark -
-
 - (NSString *)taskDescriptionForSessionTasks {
-    // %p 内存地址
+    // 使用AFURLSessionManager对象的内存地址描述task
     return [NSString stringWithFormat:@"%p", self];
 }
 
+// AFURLSessionManager监听到task的开始和暂停的回调
 - (void)taskDidResume:(NSNotification *)notification {
     NSURLSessionTask *task = notification.object;
     if ([task respondsToSelector:@selector(taskDescription)]) {
-        // task.taskDescription 之前会被赋值taskDescriptionForSessionTasks
+        // 如果是被标记为self.taskDescriptionForSessionTasks的任务
         if ([task.taskDescription isEqualToString:self.taskDescriptionForSessionTasks]) {
             dispatch_async(dispatch_get_main_queue(), ^{
+                // 发送任务继续的通知--AFN中与UI相关的分类会监听该通知
                 [[NSNotificationCenter defaultCenter] postNotificationName:AFNetworkingTaskDidResumeNotification object:task];
             });
         }
@@ -854,6 +854,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     if ([task respondsToSelector:@selector(taskDescription)]) {
         if ([task.taskDescription isEqualToString:self.taskDescriptionForSessionTasks]) {
             dispatch_async(dispatch_get_main_queue(), ^{
+                // 发送任务挂起的通知--AFN中与UI相关的分类会监听该通知
                 [[NSNotificationCenter defaultCenter] postNotificationName:AFNetworkingTaskDidSuspendNotification object:task];
             });
         }
@@ -873,14 +874,19 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     return delegate;
 }
 
+/**
+ 设置Task的代理
+
+ @param delegate AF自定义的代理
+ @param task 请求的task
+ */
 - (void)setDelegate:(AFURLSessionManagerTaskDelegate *)delegate
             forTask:(NSURLSessionTask *)task
 {
     // 断言，如果没有这个参数，debug下crash在这
     NSParameterAssert(task);
     NSParameterAssert(delegate);
-    // MARK:<在操作NSDictionary时又出现了‘锁’>
-    // 加锁保证字典线程安全
+    // 加锁保证操作NSMutableDictionary时安全--NSMutableDictionary不是线程安全的
     [self.lock lock];
     // 将AFURLSessionManagerTaskDelegate放入以taskIdentifier标记的词典中（同一个NSURLSession中的taskIdentifier是唯一的）
     // 代理和task建立映射关系
@@ -905,18 +911,15 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
              completionHandler:(void (^)(NSURLResponse *response, id responseObject, NSError *error))completionHandler
 {
     // 创建AFURLSessionManagerTaskDelegate 并初始化
-    // 对task的下载和上传进度进行了KVO
     AFURLSessionManagerTaskDelegate *delegate = [[AFURLSessionManagerTaskDelegate alloc] initWithTask:dataTask];
     
-    // AFURLSessionManagerTaskDelegate与AFURLSessionManager建立相互关系
-    // MARK:<manager属性是weak self不会被释放吗？>
+    // AFURLSessionManagerTaskDelegate与AFURLSessionManager建立相互关系--为了防止循环引用使用weak引用manager
     delegate.manager = self;
     
     delegate.completionHandler = completionHandler;
 
     // 这个taskDescriptionForSessionTasks用来发送开始和挂起通知的时候会用到,就是用这个值来Post通知，来两者对应
-    // MARK:<这个taskDescription有什么作用?>
-
+    // 将同一个AFURLSessionManger对象的所有Task的taskDescription标记成一个值
     dataTask.taskDescription = self.taskDescriptionForSessionTasks;
     
     // ***** 将AFURLSessionManagerTaskDelegate对象与 dataTask建立关系
@@ -1054,6 +1057,11 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
 }
 
 #pragma mark -
+
+/**
+  AFURLSessionManager添加对task开始和暂停的监听
+ @param task 请求任务
+ */
 - (void)addNotificationObserverForTask:(NSURLSessionTask *)task {
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(taskDidResume:) name:AFNSURLSessionTaskDidResumeNotification object:task];
     [[NSNotificationCenter defaultCenter] addObserver:self selector:@selector(taskDidSuspend:) name:AFNSURLSessionTaskDidSuspendNotification object:task];
@@ -1105,10 +1113,8 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
                             completionHandler:(nullable void (^)(NSURLResponse *response, id _Nullable responseObject,  NSError * _Nullable error))completionHandler {
 
     __block NSURLSessionDataTask *dataTask = nil;
-    //第一件事，创建NSURLSessionDataTask，里面适配了Ios8以下taskIdentifiers，函数创建task对象。 //其实现应该是因为iOS 8.0以下版本中会并发地创建多个task对象，而同步有没有做好，导致taskIdentifiers 不唯一…这边做了一个串行处理
-    // 不是太懂？？
     
-    // 调用了一个url_session_manager_create_task_safely()函数，传了一个Block进去，Block里就是iOS原生生成dataTask的方法
+    // 在iOS 8.0以下版本中会并发地创建多个task对象时由于同步有没有做好，导致taskIdentifiers 不唯一(ios的bug)…这边做了一个串行处理
     url_session_manager_create_task_safely(^{
         // ios8以上直接创建dataTask
 #pragma mark - dataTaskWithRequest

@@ -368,10 +368,12 @@
 
     // 方法dataTaskWithRequest去拿到我们最终需要的NSURLSessionDataTask实例，并且在完成的回调里，调用我们传过来的成功和失败的回调
     __block NSURLSessionDataTask *dataTask = nil;
+    
     dataTask = [self dataTaskWithRequest:request
                           uploadProgress:uploadProgress
                         downloadProgress:downloadProgress
                        completionHandler:^(NSURLResponse * __unused response, id responseObject, NSError *error) {
+                           // 当传入的completionHandler被执行时,会回调到这里
         if (error) {
             if (failure) {
                 failure(dataTask, error);
@@ -382,7 +384,8 @@
             }
         }
     }];
-
+    
+    
     return dataTask;
 }
 
