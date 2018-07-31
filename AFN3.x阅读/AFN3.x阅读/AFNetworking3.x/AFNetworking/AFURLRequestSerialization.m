@@ -383,6 +383,7 @@ static void *AFHTTPRequestSerializerObserverContext = &AFHTTPRequestSerializerOb
 
 - (NSDictionary *)HTTPRequestHeaders {
     NSDictionary __block *value;
+
     dispatch_sync(self.requestHeaderModificationQueue, ^{
         value = [NSDictionary dictionaryWithDictionary:self.mutableHTTPRequestHeaders];
     });
@@ -406,6 +407,9 @@ forHTTPHeaderField:(NSString *)field
     /* 实现高效的读写方案
        只有在自定义的并发队列中其作用-- 直到先Barrier blocks进入对列的任务完成后，该任务才执行;后于Barrier blocks进入队列的任务直到Barrier blocks任务完成才能执行。
      */
+
+    // 在多线程中修改NSMutableDictionary会crash的 NSMutableDictionary本身设计上就不是线程安全的
+    // 此处使用dispatch_barrier_async保证修改NSMutableDictionary是安全的
     dispatch_barrier_async(self.requestHeaderModificationQueue, ^{
         [self.mutableHTTPRequestHeaders setValue:value forKey:field];
     });

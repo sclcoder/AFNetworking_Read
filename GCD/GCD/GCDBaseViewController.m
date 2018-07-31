@@ -26,6 +26,24 @@
 
 @implementation GCDBaseViewController
 
+- (void)threadSafeDic{
+    
+    dispatch_queue_t gq = dispatch_get_global_queue(0, 0);
+    
+    NSMutableDictionary *mdic = [NSMutableDictionary dictionary];
+    
+    NSMutableArray *mArr = [NSMutableArray array];
+    
+    for (int i = 0; i<1000; i++) {
+        dispatch_async(gq, ^{
+            // NSMutableXX是线程不安全的类 本身设计上就不安全多线程中要注意
+            [mdic setValue:@(i) forKey:[NSString stringWithFormat:@"%zd",i]];
+            [mArr addObject:@(i)];
+        });
+    }
+    
+}
+
 - (void)viewDidLoad {
     [super viewDidLoad];
     
@@ -34,7 +52,10 @@
     // https://www.jianshu.com/p/fd81fec31fe7
     
     
-    [self threadSafe];
+//    [self threadSafe];
+    
+    [self threadSafeDic];
+
 
     // 线程安全的理解
 //    [self threadSafe00];
