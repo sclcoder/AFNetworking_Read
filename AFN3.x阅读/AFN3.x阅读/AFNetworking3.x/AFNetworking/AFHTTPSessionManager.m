@@ -284,7 +284,7 @@
 
 
 
-
+// <MARK:请求序列化器最复杂的一部分--FormData的拼接>
 // POST方法 使用FromData方式上传文件 最终方法
 - (NSURLSessionDataTask *)POST:(NSString *)URLString
                     parameters:(id)parameters

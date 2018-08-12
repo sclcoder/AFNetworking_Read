@@ -480,12 +480,15 @@ forHTTPHeaderField:(NSString *)field
             [mutableRequest setValue:[self valueForKeyPath:keyPath] forKey:keyPath];
         }
     }
+    // 注意:当使用FormData的方式创建Request时,传入的parameters是nil,即httpBody是没有数据的
     // 将传入的parameters进行编码，并添加到request中
     mutableRequest = [[self requestBySerializingRequest:mutableRequest withParameters:parameters error:error] mutableCopy];
 
 	return mutableRequest;
 }
 
+
+// <MARK:请求序列化器最复杂的一部分--FormData的拼接>
 - (NSMutableURLRequest *)multipartFormRequestWithMethod:(NSString *)method
                                               URLString:(NSString *)URLString
                                              parameters:(NSDictionary *)parameters
@@ -494,10 +497,11 @@ forHTTPHeaderField:(NSString *)field
 {
     NSParameterAssert(method);
     NSParameterAssert(![method isEqualToString:@"GET"] && ![method isEqualToString:@"HEAD"]);
-    // 生成request 注意：此时传入的参数是nil
+    
+    // 生成request 注意：此时传入的参数是nil!!!
     NSMutableURLRequest *mutableRequest = [self requestWithMethod:method URLString:URLString parameters:nil error:error];
 
-    // initWithURLRequest初始化AFStreamingMultipartFormData 构建bodyStream
+    // initWithURLRequest初始化AFStreamingMultipartFormData 构建bodyStream(NSInputStream)
     __block AFStreamingMultipartFormData *formData = [[AFStreamingMultipartFormData alloc] initWithURLRequest:mutableRequest stringEncoding:NSUTF8StringEncoding];
 
     if (parameters) {
@@ -643,6 +647,8 @@ forHTTPHeaderField:(NSString *)field
     }];
     // 来把各种类型的参数，array dic set转化成字符串，给request
     NSString *query = nil;
+    
+    // 使用FormData的Post请求传入parameters参数是nil
     if (parameters) {
         // 自定义的解析方式
         // 在头文件中查看- (void)setQueryStringSerializationWithBlock:方法说明
@@ -1000,7 +1006,8 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
 }
 
 - (NSMutableURLRequest *)requestByFinalizingMultipartFormData {
-    if ([self.bodyStream isEmpty]) { //self.bodyStream 为空时，即和普通的post请求一样
+    if ([self.bodyStream isEmpty]) {
+        //self.bodyStream 为空时，即和普通的post请求一样
         return self.request;
     }
 
@@ -1077,7 +1084,7 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
 }
 
 #pragma mark - NSInputStream 必须实现的方法
-
+// AFMultipartBodyStream继承NSInputStream这个抽象类-其必须实现该方法
 - (NSInteger)read:(uint8_t *)buffer
         maxLength:(NSUInteger)length
 {
@@ -1459,6 +1466,7 @@ typedef enum {
         }
     }];
 
+    // 注意:当使用FormData的方式创建Request时,传入的parameters是nil,即httpBody是没有数据的
     if (parameters) {
             // 设置请求头 Content-Type
             // json方式
@@ -1479,7 +1487,8 @@ typedef enum {
         if (!jsonData) {
             return nil;
         }
-        // 设置请求体 是JsonData
+        // 当使用FormData的方式创建Request时,传入的parameters是nil,不会来到此处
+        // 普通的Post请求设置的请求体是HTTPBody(NSData) 使用FormData的Post请求使用的是HTTPStreamBody(NSInputStream)
         [mutableRequest setHTTPBody:jsonData];
     }
 

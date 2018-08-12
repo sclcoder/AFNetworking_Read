@@ -1162,7 +1162,6 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     return uploadTask;
 }
 
-// formData的方式上传
 - (NSURLSessionUploadTask *)uploadTaskWithStreamedRequest:(NSURLRequest *)request
                                                  progress:(void (^)(NSProgress *uploadProgress)) uploadProgressBlock
                                         completionHandler:(void (^)(NSURLResponse *response, id responseObject, NSError *error))completionHandler
