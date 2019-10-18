@@ -28,7 +28,7 @@ typedef NS_ENUM(NSUInteger, AFSSLPinningMode) {
     AFSSLPinningModeCertificate,
 };
 
-/**
+/** X.509 是密码学里公钥证书的格式标准
  `AFSecurityPolicy` evaluates server trust against pinned X.509 certificates and public keys over secure connections.
 
  Adding pinned SSL certificates to your app helps prevent man-in-the-middle attacks and other vulnerabilities. Applications dealing with sensitive customer data or financial information are strongly encouraged to route all communication over an HTTPS connection with SSL pinning configured and enabled.
@@ -117,6 +117,7 @@ NS_ASSUME_NONNULL_BEGIN
  This method should be used when responding to an authentication challenge from a server.
 
  @param serverTrust The X.509 certificate trust of the server.
+        serverTrust 是一种执行信任链验证的抽象实体，包含着验证策略（SecPolicyRef）以及一系列受信任的锚点证书
  @param domain The domain of serverTrust. If `nil`, the domain will not be validated.
 
  @return Whether or not to trust the server.

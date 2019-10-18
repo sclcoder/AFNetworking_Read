@@ -46,6 +46,8 @@ static void url_session_manager_create_task_safely(dispatch_block_t block) {
         // Open Radar:http://openradar.appspot.com/radar?id=5871104061079552 (status: Fixed in iOS8)
         // Issue about:https://github.com/AFNetworking/AFNetworking/issues/2093
         /**
+         理解下，第一为什么用sync，因为是想要主线程等在这，等执行完，在返回，因为必须执行完dataTask才有数据，传值才有意义。
+         
          方法非常简单，关键是理解这么做的目的:为什么我们不直接去调用?
          dataTask = [self.session dataTaskWithRequest:request];
          非要绕这么一圈，我们点进去bug日志里看看，原来这是为了适配iOS8的以下，创建session的时候，并发的情况会出现session的属性taskIdentifier这个值不唯一，而这个taskIdentifier是我们后面来映射delegate的key,所以它必须是唯一的。
@@ -247,7 +249,7 @@ didCompleteWithError:(NSError *)error
     if (error) {// 有错误
         userInfo[AFNetworkingTaskDidCompleteErrorKey] = error;
         
-        //  可以自己自定义完成组 和自定义完成queue,完成回调
+        //  可以自定义完成组 和自定义完成queue,完成回调
         dispatch_group_async(manager.completionGroup ?: url_session_manager_completion_group(), manager.completionQueue ?: dispatch_get_main_queue(), ^{
             if (self.completionHandler) {
                 self.completionHandler(task.response, responseObject, error);
@@ -257,7 +259,7 @@ didCompleteWithError:(NSError *)error
                 [[NSNotificationCenter defaultCenter] postNotificationName:AFNetworkingTaskDidCompleteNotification object:task userInfo:userInfo];
             });
         });
-    } else { // 没有错误
+    } else { // 没有错误---序列化返回的数据
         
         /** 注意AF的优化的点，虽然代理回调是串行的(不明白可以见本文最后)。但是数据解析这种费时操作，确是用并行线程来做的。*/
         dispatch_async(url_session_manager_processing_queue(), ^{
@@ -706,7 +708,21 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
      */
     // 创建session 设置相关配置sessionConfiguration、设置代理delegate、代理的回调队列operationQueue
     self.session = [NSURLSession sessionWithConfiguration:self.sessionConfiguration delegate:self delegateQueue:self.operationQueue];
-    
+    /**
+     + (NSURLSession *)sessionWithConfiguration:(NSURLSessionConfiguration *)configuration delegate:(nullable id <NSURLSessionDelegate>)delegate delegateQueue:(nullable NSOperationQueue *)queue;
+
+     <NSURLSessionDelegate> Summary
+     
+     A protocol defining methods that NSURLSession instances call on their delegates to handle session-level events, like session life cycle changes.
+     Declaration
+     
+     @protocol NSURLSessionDelegate
+     Discussion
+     
+     In addition to the methods defined in this protocol, most delegates should also implement some or all of the methods in the NSURLSessionTaskDelegate, NSURLSessionDataDelegate, and NSURLSessionDownloadDelegate protocols to handle task-level events. These include events like the beginning and end of individual tasks, and periodic progress updates from data or download tasks.
+     Note
+     Your NSURLSession object doesn’t need to have a delegate. If no delegate is assigned, a system-provided delegate is used, and you must provide a completion callback to obtain the data.
+     */
     
 
     // 各种响应转码 AFJSONResponseSerializer--AFHTTPResponseSerializer<AFURLResponseSerialization>
@@ -861,7 +877,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     
     // 此版本有更改 版3.1.0此处还有个操作
     
-    //添加task开始和暂停的通知
+    // 添加task开始和暂停的通知
     [self addNotificationObserverForTask:task];
     
     [self.lock unlock];
@@ -1368,17 +1384,12 @@ didBecomeInvalidWithError:(NSError *)error
     [[NSNotificationCenter defaultCenter] postNotificationName:AFURLSessionDidInvalidateNotification object:session];
 }
 
-
-
-
-
-
 /** 代理方法2 https---session-level级别
     
     函数作用：
         web服务器接收到客户端请求时，有时候需要先验证客户端是否为正常用户，再决定是够返回真实数据。这种情况称之为服务端要求客户端接收挑战（NSURLAuthenticationChallenge challenge）。接收到挑战后，客户端要根据服务端传来的challenge来生成completionHandler所需的NSURLSessionAuthChallengeDisposition disposition和NSURLCredential credential（disposition指定应对这个挑战的方法，而credential是客户端生成的挑战证书，注意只有challenge中认证方法为NSURLAuthenticationMethodServerTrust的时候，才需要生成挑战证书）。最后调用completionHandler回应服务器端的挑战
      
- 函数讨论：
+    函数讨论：
      该代理方法会在下面两种情况调用：
      
      当服务器端要求客户端提供证书时或者进行NTLM认证（Windows NT LAN Manager，微软提出的WindowsNT挑战/响应验证机制）时，此方法允许你的app提供正确的挑战证书。
@@ -1392,47 +1403,44 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
  completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler
 {
     
-    
-    //挑战处理类型为 默认
-    
-    /*  NSURLSessionAuthChallengePerformDefaultHandling：默认方式处理 NSURLSessionAuthChallengeUseCredential：使用指定的证书 NSURLSessionAuthChallengeCancelAuthenticationChallenge：取消挑战
+    /*
+        NSURLSessionAuthChallengePerformDefaultHandling：默认方式处理
+        NSURLSessionAuthChallengeUseCredential：使用指定的证书
+        NSURLSessionAuthChallengeCancelAuthenticationChallenge：取消挑战
      */
 
+    // 如果使用默认的处置方式，那么 credential 就会被忽略
     NSURLSessionAuthChallengeDisposition disposition = NSURLSessionAuthChallengePerformDefaultHandling;
-    // 凭据、证书
     __block NSURLCredential *credential = nil;
-
+    
     // sessionDidReceiveAuthenticationChallenge是自定义方法，用来如何应对服务器端的认证挑战
     if (self.sessionDidReceiveAuthenticationChallenge) {
-        // 执行传入的block
         disposition = self.sessionDidReceiveAuthenticationChallenge(session, challenge, &credential);
     } else {
         
-        // 此处服务器要求客户端的接收认证挑战方法是NSURLAuthenticationMethodServerTrust
-        // 也就是说服务器端需要客户端返回一个根据认证挑战的保护空间提供的信任（即challenge.protectionSpace.serverTrust）产生的挑战证书。
-        // 而这个证书就需要使用credentialForTrust:来创建一个NSURLCredential对象
-        
         if ([challenge.protectionSpace.authenticationMethod isEqualToString:NSURLAuthenticationMethodServerTrust]) {
+            /**
+             判断如果服务端的认证方法要求是NSURLAuthenticationMethodServerTrust,则只需要验证服务端证书是否安全（即https的单向认证，这是AF默认处理的认证方式，其他的认证方式，只能由我们自定义Block的实现）
+             
+             AF默认的处理是，如果这行返回NO、说明AF内部认证失败，则取消https认证，即取消请求。返回YES则进入if块，用服务器返回的一个serverTrust去生成了一个认证证书。（注：这个serverTrust是服务器传过来的，里面包含了服务器的证书信息，是用来我们本地客户端去验证该证书是否合法用的，后面会更详细的去讲这个参数）然后如果有证书，则用证书认证方式，否则还是用默认的验证方式。最后调用completionHandler传递认证方式和要认证的证书，去做系统根证书验证。
+             
+             总结:这里securityPolicy存在的作用就是，使得在系统底层自己去验证之前，AF可以先去验证服务端的证书。如果通不过，则直接越过系统的验证，取消https的网络请求。否则，继续去走系统根证书的验证。
+             */
             
-            // 基于客户端的安全策略来决定是否信任该服务器，不信任的话，也就没必要响应挑战
+            //  基于客户端的安全策略来决定是否信任该服务器，不信任的话，也就没必要响应挑战
             if ([self.securityPolicy evaluateServerTrust:challenge.protectionSpace.serverTrust forDomain:challenge.protectionSpace.host]) {
                 
-                // 创建挑战证书（注：挑战方式为UseCredential和PerformDefaultHandling都需要新建挑战证书）
+                // NSURLCredential: This class is an immutable object representing an authentication credential.
                 credential = [NSURLCredential credentialForTrust:challenge.protectionSpace.serverTrust];
-                // 确定挑战的方式
                 if (credential) {
-                    // 证书挑战
                     disposition = NSURLSessionAuthChallengeUseCredential;
                 } else {
-                    // 默认挑战  唯一区别，下面少了这一步！
                     disposition = NSURLSessionAuthChallengePerformDefaultHandling;
                 }
             } else {
-                // 取消挑战
                 disposition = NSURLSessionAuthChallengeCancelAuthenticationChallenge;
             }
         } else {
-            // 默认挑战方式
             disposition = NSURLSessionAuthChallengePerformDefaultHandling;
         }
     }
@@ -1440,18 +1448,6 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
     if (completionHandler) {
         completionHandler(disposition, credential);
     }
-    
-/**
- 函数作用：
- web服务器接收到客户端请求时，有时候需要先验证客户端是否为正常用户，再决定是够返回真实数据。这种情况称之为服务端要求客户端接收挑战（NSURLAuthenticationChallenge challenge）。接收到挑战后，客户端要根据服务端传来的challenge来生成completionHandler所需的NSURLSessionAuthChallengeDisposition disposition和NSURLCredential credential（disposition指定应对这个挑战的方法，而credential是客户端生成的挑战证书，注意只有challenge中认证方法为NSURLAuthenticationMethodServerTrust的时候，才需要生成挑战证书）。最后调用completionHandler回应服务器端的挑战。
- 函数讨论：
- 该代理方法会在下面两种情况调用：
- 
- 当服务器端要求客户端提供证书时或者进行NTLM认证（Windows NT LAN Manager，微软提出的WindowsNT挑战/响应验证机制）时，此方法允许你的app提供正确的挑战证书。
- 当某个session使用SSL/TLS协议，第一次和服务器端建立连接的时候，服务器会发送给iOS客户端一个证书，此方法允许你的app验证服务期端的证书链（certificate keychain）
- 注：如果你没有实现该方法，该session会调用其NSURLSessionTaskDelegate的代理方法URLSession:task:didReceiveChallenge:completionHandler: 。
- 
- */
     
 }
 
@@ -1465,8 +1461,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 //* response to be delivered as the payload of this request. The default
 //* is to follow redirections.
 
-// 注意 ： 这个方法是在服务器去重定向的时候，才会被调用
-
+// 注意 ： 这个方法是在服务器去重定向的时候，才会被调用 一开始我以为这个方法是类似NSURLProtocol，可以在请求时自己主动的去重定向request，后来发现不是，这个方法是在服务器去重定向的时候，才会被调用。
 /**
  关于这个代理还有一些需要注意的地方：
     此方法只会在default session或者ephemeral session中调用，而在background session中，session task会自动重定向。
@@ -1628,7 +1623,7 @@ totalBytesExpectedToSend:(int64_t)totalBytesExpectedToSend
  Server errors are not reported through the error parameter. The only errors your delegate receives through the error parameter are client-side errors, such as being unable to resolve the hostname or connect to the host.
  task完成之后的回调，成功和失败都会回调这里
  函数讨论：
- 注意这里的error不会报告服务期端的error，他表示的是客户端这边的eroor，比如无法解析hostname或者连不上host主机。
+ 注意这里的error不会报告服务期端的error，他表示的是客户端这边的error，比如无法解析hostname或者连不上host主机。
  */
 
 // 在子线程回调的
