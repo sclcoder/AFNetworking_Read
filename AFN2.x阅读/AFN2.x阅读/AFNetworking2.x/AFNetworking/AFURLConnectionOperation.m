@@ -573,8 +573,7 @@ static inline BOOL AFStateTransitionIsValid(AFOperationState fromState, AFOperat
             // 把connection和outputStream注册到当前线程runloop中去，只有这样，才能在这个线程中回调
             // 此处已经是AF的常驻子线程
             [self.connection scheduleInRunLoop:runLoop forMode:runLoopMode];
-
-            // 使用NSURLConnection下载时会有内存峰值 使用outputStream来分段保存文件来可以减小内存峰值 -- 刀哥讲
+            //一个写入到内存中的流，可以通过NSStreamDataWrittenToMemoryStreamKey拿到写入后的数据
             [self.outputStream scheduleInRunLoop:runLoop forMode:runLoopMode];
         }
         // 打开输入流
@@ -777,10 +776,25 @@ didReceiveResponse:(NSURLResponse *)response
     while (YES) {
         NSInteger totalNumberOfBytesWritten = 0;
         if ([self.outputStream hasSpaceAvailable]) {
+            //创建一个buffer流缓冲区，大小为data的字节数
             const uint8_t *dataBuffer = (uint8_t *)[data bytes];
 
             NSInteger numberOfBytesWritten = 0;
+            //当写的长度小于数据的长度，在循环里
             while (totalNumberOfBytesWritten < (NSInteger)length) {
+                /**
+                 - (NSInteger)write:(const uint8_t *)buffer maxLength:(NSUInteger)len;
+                 
+                 buffer:The data to write.
+                 length:The length of the data buffer, in bytes.
+                 Important:The behavior of this method is undefined if you pass a negative or zero number.
+                 Returns
+                     A number indicating the outcome of the operation:
+                     A positive number indicates the number of bytes written.
+                     0 indicates that a fixed-length stream and has reached its capacity.
+                     -1 means that the operation failed; more information about the error can be obtained with streamError.
+                 */
+                // 往outputStream写数据，系统的方法，一次就写一部分，得循环写
                 numberOfBytesWritten = [self.outputStream write:&dataBuffer[(NSUInteger)totalNumberOfBytesWritten] maxLength:(length - (NSUInteger)totalNumberOfBytesWritten)];
                 if (numberOfBytesWritten == -1) {
                     break;
