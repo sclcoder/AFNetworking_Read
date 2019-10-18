@@ -366,6 +366,9 @@ static NSArray * AFPublicKeyTrustChainForServerTrust(SecTrustRef serverTrust) {
      AFSSLPinningModeCertificate: 采用预埋证书【pinnedCertificates】校验服务器返回的证书。（可防止中间人攻击 如charls这种抓包工具）
      注意：
      validatesDomainName 是否校验证书域名
+ 
+     allowInvalidCertificates 定义了客户端是否信任非法证书。一般来说，每个版本的iOS设备中，都会包含一些既有的CA根证书。如果接收到的证书是iOS信任的CA根证书签名的，那么则为合法证书；否则则为“非法”证书。allowInvalidCertificates 就是用来确认是否信任这样的证书的。当然，我们也可以给iOS加入新的信任的CA证书
+ 
      allowInvalidCertificates 是否允许非法证书，基本模式预埋证书都是未经过第三方权威机构签名的证书 故使用 AFSSLPinningModePublicKey和 AFSSLPinningModeCertificate 时候 请将其设置成YES
      validatesCertificateChain 是否校验服务服务器证书签发root证书
  */
