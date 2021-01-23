@@ -1152,6 +1152,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     // uploadTask may be nil on iOS7 because uploadTaskWithRequest:fromFile: may return nil despite being documented as nonnull (https://devforums.apple.com/message/926113#926113)
     if (!uploadTask && self.attemptsToRecreateUploadTasksForBackgroundSessions && self.session.configuration.identifier) {
         for (NSUInteger attempts = 0; !uploadTask && attempts < AFMaximumNumberOfAttemptsToRecreateBackgroundSessionUploadTask; attempts++) {
+            
             uploadTask = [self.session uploadTaskWithRequest:request fromFile:fileURL];
         }
     }
@@ -1178,6 +1179,7 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
     return uploadTask;
 }
 
+/// 使用FromData方式上传文件，最终调用该方法: 内部使用session的 uploadTaskWithStreamedRequest:函数发送数据
 - (NSURLSessionUploadTask *)uploadTaskWithStreamedRequest:(NSURLRequest *)request
                                                  progress:(void (^)(NSProgress *uploadProgress)) uploadProgressBlock
                                         completionHandler:(void (^)(NSURLResponse *response, id responseObject, NSError *error))completionHandler
@@ -1197,6 +1199,10 @@ static NSString * const AFNSURLSessionTaskDidSuspendNotification = @"com.alamofi
  Returns
  The new session upload task.
  **/
+        
+        /* Creates an upload task with the given request.  The previously set body stream of the request (if any) is ignored and the URLSession:task:needNewBodyStream: delegate will be called when the body payload is required. */
+        
+        // 请求流的方式上传数据
         uploadTask = [self.session uploadTaskWithStreamedRequest:request];
     });
 
@@ -1538,7 +1544,7 @@ didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge
 /**  当一个session task需要发送一个新的request body stream到服务器端的时候，调用该代理方法。
      该代理方法会在下面两种情况被调用：
      
-     如果task是由uploadTaskWithStreamedRequest:创建的，那么提供初始的request body stream时候会调用该代理方法。
+     如果task是由uploadTaskWithStreamedRequest:创建的（如:formData形式上传数据），那么提供初始的request body stream时候会调用该代理方法。
      因为认证挑战或者其他可恢复的服务器错误，而导致需要客户端重新发送一个含有body stream的request，这时候会调用该代理。
  
      Tells the delegate when a task requires a new request body stream to send to the remote server.

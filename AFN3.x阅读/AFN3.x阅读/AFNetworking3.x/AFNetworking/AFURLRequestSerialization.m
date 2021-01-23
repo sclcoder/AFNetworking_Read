@@ -1015,7 +1015,7 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
     // 重新设定bodyStream中哪个AFHTTPBodyPart对象是开头哪个是结尾，为了正确计算Content-Length
     [self.bodyStream setInitialAndFinalBoundaries];
   
-    // 设置HTTPBodyStream
+    // 设置HTTPBodyStream: AFMultipartBodyStream类型
     [self.request setHTTPBodyStream:self.bodyStream];
 
     // 设置请求头
@@ -1083,8 +1083,119 @@ NSTimeInterval const kAFUploadStream3GSuggestedDelay = 0.2;
     return [self.HTTPBodyParts count] == 0;
 }
 
+
+/**
+ 大文件上传或者下载，如果一次性加载数据到内存，会导致内存暴涨，所以需要使用输入流 NSInputStream 和输出流 NSOutputStream，建立起文件和内存中的管道，通过管道输入和输出数据。
+
+ 在 Cocoa 中包含三个与流相关的类：NSStream、NSInputStream 和 NSOutputStream 。NSStream 是一个抽象基类，定义了所有流对象的基础接口和属性。NSInputStream 和 NSOutputStream 继承自 NSStream，实现了输入流和输出流的默认行为。从下图中可以看出，NSInputStream 可以从文件、socket 和 NSData 对象中获取数据；NSOutputStream 可以将数据写入文件、socket 、内存缓存和 NSData 对象中
+
+ 链接：https://www.jianshu.com/p/3f93505a077e
+ 
+ 
+ #import "ViewController.h"
+
+ @interface ViewController () <NSStreamDelegate> {
+     NSInteger _count;
+ }
+
+ @property (nonatomic, strong) NSMutableData *data;
+ @property (nonatomic, strong) NSInputStream *inputStream;
+
+ // 沙盒路径
+ @property (nonatomic, strong) NSString *fullPath;
+ // 输出流
+ @property (nonatomic, strong) NSOutputStream *outPutStream;
+
+ @end
+
+ @implementation ViewController
+
+ - (void)viewDidLoad {
+     [super viewDidLoad];
+     
+ }
+
+ - (void)touchesBegan:(NSSet<UITouch *> *)touches withEvent:(UIEvent *)event {
+     _count = 0;
+     
+     [self testNSInputStream];
+ }
+
+ - (void)testNSInputStream {
+     NSString *filePath = [[NSBundle mainBundle] pathForResource:@"test" ofType:@"mp4"];
+     NSData *data = [NSData dataWithContentsOfFile:filePath];
+     self.inputStream = [NSInputStream inputStreamWithData:data];
+     // inputStreamWithFileAtPath: 这个方法使用时有问题，读取不到数据；但是通过inputStreamWithData:方法读取就没什么问题
+ //    self.inputStream = [NSInputStream inputStreamWithFileAtPath:filePath];
+     self.inputStream.delegate = self;
+     [self.inputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+     [self.inputStream open];
+     
+     // 写数据到沙盒中
+     self.fullPath = [[NSSearchPathForDirectoriesInDomains(NSCachesDirectory, NSUserDomainMask, YES) lastObject] stringByAppendingPathComponent:@"test.mp4"];
+     NSLog(@"%@", self.fullPath);
+     self.outPutStream = [[NSOutputStream alloc] initToFileAtPath:self.fullPath append:YES];
+     // 打开输入流
+     [self.outPutStream open];
+ }
+
+ - (void)stream:(NSStream *)aStream handleEvent:(NSStreamEvent)eventCode {
+     switch(eventCode) {
+         case NSStreamEventOpenCompleted:
+             NSLog(@"文件打开,准备读取数据");
+             break;
+         case NSStreamEventHasBytesAvailable: {
+ 
+             uint8_t buf[1024];
+             NSInteger readLength = [self.inputStream read:buf maxLength:1024];
+             if (readLength > 0) {
+                 if (_count == 0) {
+                     NSLog(@"数据读取中...");
+                 }
+                 _count++;
+                 
+                 [self.data appendBytes:(const void *)buf length:readLength];
+             } else {
+                 NSLog(@"未读取到数据");
+             }
+             break;
+         }
+         case NSStreamEventEndEncountered: {
+             NSLog(@"数据读取结束");
+             
+             // 写数据
+             [self.outPutStream write:self.data.bytes maxLength:self.data.length];
+             
+             [aStream close];
+             [aStream removeFromRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];
+             aStream = nil;
+             
+             [self.outPutStream close];
+             self.outPutStream = nil;
+             break;
+         }
+         default:
+             break;
+     }
+ }
+
+ - (NSMutableData *)data {
+     if (_data == nil) {
+         _data = [NSMutableData data];
+     }
+     return _data;
+ }
+ @end
+ 
+ */
+
 #pragma mark - NSInputStream 必须实现的方法
-// AFMultipartBodyStream继承NSInputStream这个抽象类-其必须实现该方法
+/**
+ NSInputStream的抽象方法，需要子类实现: NSInputStream会调用该方法，以便从流中读取数据到buffer中
+ 
+ AFMultipartBodyStream被设置给了Request.HTTPBodyStream属性。
+ 请求发起后，系统要获取请求体时，Request.HTTPBodyStream会调用该方法
+ */
 - (NSInteger)read:(uint8_t *)buffer
         maxLength:(NSUInteger)length
 {
@@ -1256,6 +1367,8 @@ typedef enum {
     }
 }
 
+
+/// 注意: 将body部分的数据初始化为Stream
 - (NSInputStream *)inputStream {
     if (!_inputStream) {
         if ([self.body isKindOfClass:[NSData class]]) {
@@ -1323,6 +1436,8 @@ typedef enum {
     }
 }
 
+
+/// AFHTTPBodyPart的读取过程
 - (NSInteger)read:(uint8_t *)buffer
         maxLength:(NSUInteger)length
 {
@@ -1330,17 +1445,20 @@ typedef enum {
     // 使用分隔符将对应bodyPart数据封装起来
     if (_phase == AFEncapsulationBoundaryPhase) {
         NSData *encapsulationBoundaryData = [([self hasInitialBoundary] ? AFMultipartFormInitialBoundary(self.boundary) : AFMultipartFormEncapsulationBoundary(self.boundary)) dataUsingEncoding:self.stringEncoding];
+        // 分隔符，NSData类型，调用readData:intoBuffer:maxLength:方法
         totalNumberOfBytesRead += [self readData:encapsulationBoundaryData intoBuffer:&buffer[totalNumberOfBytesRead] maxLength:(length - (NSUInteger)totalNumberOfBytesRead)];
     }
     // 如果读取到的是bodyPart对应的header部分，那么使用stringForHeaders获取到对应header，并读取到buffer中
     if (_phase == AFHeaderPhase) {
         NSData *headersData = [[self stringForHeaders] dataUsingEncoding:self.stringEncoding];
+         // header部分，NSData类型，调用readData:intoBuffer:maxLength:方法
         totalNumberOfBytesRead += [self readData:headersData intoBuffer:&buffer[totalNumberOfBytesRead] maxLength:(length - (NSUInteger)totalNumberOfBytesRead)];
     }
     // 如果读取到的是bodyPart的内容主体，即inputStream，那么就直接使用inputStream写入数据到buffer中
     if (_phase == AFBodyPhase) {
         NSInteger numberOfBytesRead = 0;
         // 使用系统自带的NSInputStream的read:maxLength:函数读取
+        // 打开关闭流的时机在 transitionToNextPhase 方法中
         numberOfBytesRead = [self.inputStream read:&buffer[totalNumberOfBytesRead] maxLength:(length - (NSUInteger)totalNumberOfBytesRead)];
         if (numberOfBytesRead == -1) {
             return -1;
@@ -1397,10 +1515,12 @@ typedef enum {
             break;
         case AFHeaderPhase:
             [self.inputStream scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSRunLoopCommonModes];
+            /// 输入流打开: 此时header的数据已经读取结束，打开流准备读取body数据
             [self.inputStream open];
             _phase = AFBodyPhase;
             break;
         case AFBodyPhase:
+            /// 输入流关闭: 注意transitionToNextPhase调用时间， 此时body的数据已经读取完毕，把流关闭
             [self.inputStream close];
             _phase = AFFinalBoundaryPhase;
             break;

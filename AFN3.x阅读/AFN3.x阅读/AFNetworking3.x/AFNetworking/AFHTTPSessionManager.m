@@ -294,7 +294,7 @@
                        failure:(void (^)(NSURLSessionDataTask *task, NSError *error))failure
 {
     NSError *serializationError = nil;
-    // formData的request是单独方法生成的(streamedRequest)
+    // formData的request是单独方法生成的( 请求体被设置给了NSInputStream类型的HTTPBodyStream属性)
     NSMutableURLRequest *request = [self.requestSerializer
                                     multipartFormRequestWithMethod:@"POST"
                                     URLString:[[NSURL URLWithString:URLString
@@ -327,7 +327,7 @@
             }
         }
     }];
-    
+    // 请求发起后，系统调用的请求流的 
     [task resume];
     
     return task;
